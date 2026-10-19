@@ -351,11 +351,28 @@ def create_app(
         if not spec_path or not spec_path.exists():
             raise HTTPException(status_code=404, detail="spec.yaml が見つかりません")
 
+        # 採点前チェック: テンプレート未編集（§11.24）
+        exercise = load_exercise(chapter_id, lesson_id)
+        template_code = (exercise or {}).get("template", "")
+        if template_code and req.code.strip() == template_code.strip():
+            return {
+                "simulator_available": True,
+                "simulator_version_ok": True,
+                "version": ver,
+                "message": ver_msg,
+                "status": "ERROR",
+                "cases": [],
+                "errors": [],
+                "lint_hints": lint_hints,
+                "user_message": "❌ コードにエラーが見つかりました：\n  書き方にまちがいがあります\n  → まだ回路が書かれていないか、途中で終わっています",
+                "error_detail": None,
+            }
+
         # 採点前チェック: module / endmodule の数が一致するか (§11.21)
         module_check = _check_module_structure(req.code)
         if module_check:
             # E001 と同じ日本語見出しを使う（学習者にコード名 E_NO_ENDMODULE は出さない）
-            jp_heading = "書き方にまちがいがあります\n  → endmodule がありません"
+            jp_heading = "❌ コードにエラーが見つかりました：\n  書き方にまちがいがあります\n  → endmodule がありません"
             return {
                 "simulator_available": True,
                 "simulator_version_ok": True,
@@ -370,12 +387,14 @@ def create_app(
                 "error_detail": [{"code": "E001", "message": module_check}],
             }
 
-        # 採点前チェック: module 名が spec の top と一致するか
+        # 採点前チェック: module 名が spec の top と一致するか（§11.25）
         top_name = _get_spec_top(spec_path)
         if top_name:
             module_name = _get_code_module_name(req.code)
             if module_name and module_name != top_name:
-                msg = f"モジュール名 '{module_name}' が spec の設定（top: {top_name}）と異なります"
+                # spec / top: は学習者に見せない
+                msg_user = f"モジュール名は '{top_name}' にしてください"
+                msg_detail = f"モジュール名 '{module_name}' が top: {top_name} と異なります"
                 return {
                     "simulator_available": True,
                     "simulator_version_ok": True,
@@ -383,12 +402,10 @@ def create_app(
                     "message": ver_msg,
                     "status": "ERROR",
                     "cases": [],
-                    "errors": [{"code": "E002", "severity": "error",
-                                "file": "design.sv", "line": 0,
-                                "message": msg}],
+                    "errors": [],
                     "lint_hints": lint_hints,
-                    "user_message": f"❌ {msg}",
-                    "error_detail": [{"code": "E002", "message": msg}],
+                    "user_message": f"❌ コードにエラーが見つかりました：\n  {msg_user}",
+                    "error_detail": [{"code": "E002", "message": msg_detail}],
                 }
 
         # 同時採点1件制限

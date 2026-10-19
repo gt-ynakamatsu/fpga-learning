@@ -641,8 +641,6 @@ def _format_e001(e: "ErrorDetail") -> str:
     line_str = f"（{e.line}行目）" if e.line else ""
 
     # §11.17 固有パターン
-    if "unexpected token" in lower:
-        return f"コードの書き方（文法）に誤りがあります{line_str}"
     if "top module" in lower and "not found" in lower:
         return f"モジュール名が spec の設定（top:）と異なります"
     if "expected port direction" in lower:
@@ -680,13 +678,27 @@ def _friendly_error(message: str, code: str = "") -> str:
         return "採点ツールの内部エラーが発生しました"
     if "expected port direction" in message:
         return "ポートの向き（input / output / inout）が指定されていません"
-    if "unexpected token" in lower:
-        return "コードの書き方（文法）に誤りがあります"
     if "top module" in lower and "not found" in lower:
         return "モジュール名が spec の設定（top:）と異なります"
     # E001 ですでに日本語のメッセージ（deltasim v0.2.2+）はそのまま使う
     if "ありません" in message or "見つかりません" in message or "開始" in message:
         return message
+
+    # よくある E001 パターン（§11.20 の2行目に使う日本語）
+    # カンマ抜け: expected ')' got 'output' など（ポートリスト内の識別子）
+    if "expected ')'" in message and "got '" in message:
+        got = message.split("got '")[-1].split("'")[0] if "got '" in message else ""
+        if got in ("output", "input", "inout", "logic", "reg", "wire"):
+            return "「,」（カンマ）が抜けています"
+        return "「)」が足りません"
+    # end 抜け: expected token type ID, got KW ('endmodule') など
+    if ("got kw" in lower or "got keyword" in lower) and "endmodule" in lower:
+        return "「end」が足りません"
+    if "expected" in lower and "endmodule" in lower:
+        return "「end」が足りません"
+    # module なし: No module declaration found
+    if "no module" in lower:
+        return "module がありません"
 
     hints = [
         ("expected ';'",  "セミコロン ';' が抜けています"),

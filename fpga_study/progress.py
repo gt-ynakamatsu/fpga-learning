@@ -185,8 +185,8 @@ def reset_quiz_attempt(
 ) -> dict:
     """
     クイズの挑戦をリセット（「もう一度」押下時）。
-    quiz_answers_done をリセットし、新しい attempt_id を記録する。
-    quiz_score・quiz_total もリセットし、完了フラグも外す。
+    quiz_answers_done と点数をリセットし、新しい attempt を始める。
+    §11.23: 一度付いた completed / completed_at / バッジは消さない。
     """
     conn = _get_conn(db_path)
     key = f"{chapter_id}/{lesson_id}"
@@ -197,7 +197,7 @@ def reset_quiz_attempt(
             conn.execute(
                 """UPDATE lesson_progress
                    SET quiz_answers_done='[]', quiz_score=0, quiz_total=0,
-                       completed=0, completed_at=NULL, updated_at=?
+                       quiz_current_attempt='', updated_at=?
                    WHERE lesson_key=?""",
                 (now, key),
             )

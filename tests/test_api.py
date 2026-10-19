@@ -411,3 +411,54 @@ class TestProgressAPI:
         assert res.status_code == 200
         assert "text/html" in res.headers["content-type"]
         assert "FPGAお勉強アプリ" in res.text
+
+
+class TestHdlPreflightChecks:
+    """採点前チェック: テンプレート未編集・モジュール名・endmodule"""
+
+    def test_template_not_modified_gets_special_message(self, client):
+        """テンプレートそのまま提出 → §11.24 専用メッセージ"""
+        from fpga_study.content.loader import load_exercise
+        ex = load_exercise("chapter06", "lesson01")
+        template = (ex or {}).get("template", "")
+        if not template:
+            pytest.skip("テンプレートが exercise.yaml に無い")
+        res = client.post(
+            "/api/chapters/chapter06/lessons/lesson01/hdl/grade",
+            json={"code": template},
+        )
+        assert res.status_code == 200
+        data = res.json()
+        msg = data.get("user_message", "")
+        assert "まだ回路が書かれていない" in msg or "途中で終わっています" in msg, (
+            f"テンプレート未編集の専用メッセージが出ません: {msg!r}"
+        )
+
+    def test_wrong_module_name_shows_correct_name(self, client):
+        """モジュール名間違い → 「{top_name} にしてください」（spec/top: は出さない）"""
+        code = "module wrong_name(input logic a, b, output logic y);\n    assign y = a & b;\nendmodule\n"
+        res = client.post(
+            "/api/chapters/chapter06/lessons/lesson01/hdl/grade",
+            json={"code": code},
+        )
+        assert res.status_code == 200
+        data = res.json()
+        msg = data.get("user_message", "")
+        # 正しいモジュール名を案内すること
+        assert "and_gate" in msg, f"正しいモジュール名が案内されません: {msg!r}"
+        # spec / top: は出さないこと
+        assert "spec" not in msg and "top:" not in msg, (
+            f"spec/top: が学習者に見えています: {msg!r}"
+        )
+
+    def test_endmodule_missing_no_code_name_in_user_message(self, client):
+        """endmodule 抜け → E_NO_ENDMODULE コード名が user_message に出ない"""
+        code = "module and_gate(input logic a, b, output logic y);\n    assign y = a & b;\n"
+        res = client.post(
+            "/api/chapters/chapter06/lessons/lesson01/hdl/grade",
+            json={"code": code},
+        )
+        data = res.json()
+        msg = data.get("user_message", "")
+        assert "E_NO_ENDMODULE" not in msg
+        assert "書き方にまちがいがあります" in msg

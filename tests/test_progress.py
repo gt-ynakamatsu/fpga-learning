@@ -187,3 +187,48 @@ class TestBadges:
         badges = get_badges(tmp_db)
         first_lesson_badges = [b for b in badges if b["badge_id"] == "first_lesson"]
         assert len(first_lesson_badges) == 1
+
+
+class TestQuizResetPreservesCompleted:
+    """§11.23: quiz/reset は completed を消さない"""
+
+    def test_reset_after_complete_keeps_completed(self, tmp_db):
+        """完了後に reset_quiz_attempt を呼んでも completed=1 のまま"""
+        from fpga_study.progress import reset_quiz_attempt, save_quiz_answer
+
+        # 全問正解で完了
+        for qid in ["q1", "q2", "q3", "q4"]:
+            save_quiz_answer("chapter01", "lesson01", qid,
+                             ["q1", "q2", "q3", "q4"],
+                             attempt_id="done-attempt", db_path=tmp_db)
+
+        prog_before = get_lesson_progress("chapter01", "lesson01", tmp_db)
+        assert prog_before["completed"] == 1, "全問正解後に completed=1 になっていません"
+
+        # 「もう一度」= reset
+        reset_quiz_attempt("chapter01", "lesson01", "retry", tmp_db)
+        prog_after = get_lesson_progress("chapter01", "lesson01", tmp_db)
+
+        assert prog_after["completed"] == 1, (
+            f"reset 後に completed が {prog_after['completed']} になりました（消えてはいけない）"
+        )
+        assert prog_after["completed_at"] is not None, "reset 後に completed_at が消えました"
+        # 点数はリセットされる（次の試みのため）
+        assert prog_after["quiz_score"] == 0, "reset 後に quiz_score が 0 になっていません"
+
+    def test_reset_after_complete_keeps_badge(self, tmp_db):
+        """完了後に reset してもバッジが残る"""
+        from fpga_study.progress import reset_quiz_attempt, save_quiz_answer
+
+        for qid in ["q1", "q2", "q3", "q4"]:
+            save_quiz_answer("chapter01", "lesson01", qid,
+                             ["q1", "q2", "q3", "q4"],
+                             attempt_id="badge-attempt", db_path=tmp_db)
+
+        badges_before = {b["badge_id"] for b in get_badges(tmp_db)}
+        reset_quiz_attempt("chapter01", "lesson01", "retry2", tmp_db)
+        badges_after = {b["badge_id"] for b in get_badges(tmp_db)}
+
+        assert badges_before == badges_after, (
+            f"reset 後にバッジが変わりました: before={badges_before} after={badges_after}"
+        )

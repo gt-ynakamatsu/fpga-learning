@@ -662,3 +662,52 @@ class TestStubSimulator:
         stub = StubSimulator()
         result = stub.run([], None)
         assert result.status == "SKIP"
+
+
+class TestE001JapaneseHints:
+    """§11.20 E001 エラーの2行目日本語ヒント"""
+
+    def _make_error(self, message, line=1):
+        from fpga_study.simulator import ErrorDetail
+        return ErrorDetail(file="d.sv", line=line, column=0,
+                           severity="error", message=message, code="E001")
+
+    def test_comma_missing_hint(self):
+        """expected ')' got 'output' → カンマが抜けています"""
+        from fpga_study.simulator import _format_e001
+        e = self._make_error("expected ')', got 'output'")
+        result = _format_e001(e)
+        assert "カンマ" in result or "," in result, f"カンマヒントが出ません: {result!r}"
+        assert "書き方にまちがいがあります" in result
+
+    def test_bracket_missing_hint(self):
+        """expected ')' got ';' → ) が足りません"""
+        from fpga_study.simulator import _format_e001
+        e = self._make_error("expected ')', got ';'", line=2)
+        result = _format_e001(e)
+        assert ")" in result or "括弧" in result, f"括弧ヒントが出ません: {result!r}"
+
+    def test_end_missing_hint(self):
+        """got KW ('endmodule') → end が足りません"""
+        from fpga_study.simulator import _format_e001
+        e = self._make_error("expected token type ID, got KW ('endmodule')", line=4)
+        result = _format_e001(e)
+        assert "end" in result.lower(), f"endヒントが出ません: {result!r}"
+
+    def test_no_module_hint(self):
+        """No module declaration found → module がありません"""
+        from fpga_study.simulator import _format_e001
+        e = self._make_error("No module declaration found", line=0)
+        result = _format_e001(e)
+        assert "module" in result, f"moduleヒントが出ません: {result!r}"
+
+    def test_no_english_inline(self):
+        """英語原文は見出し直下・→ に出ない（§11.22）"""
+        from fpga_study.simulator import _format_e001
+        e = self._make_error("some untranslated english error message", line=3)
+        result = _format_e001(e)
+        # 英語原文がインラインに出ないこと
+        assert "untranslated english error message" not in result, (
+            f"英語原文がインライン表示されています: {result!r}"
+        )
+        assert "書き方にまちがいがあります" in result
