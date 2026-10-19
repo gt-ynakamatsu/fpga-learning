@@ -223,6 +223,10 @@ problems:
 
 ### 3.9 HDL演習定義 (exercise.yaml, type: hdl)
 
+> **deltasim の要件**: §15 (offset_ns) を利用する spec.yaml には **deltasim 748164e 以降** が必要。
+> 古いバージョンでは offset_ns が無視されて silent PASS になる可能性があるため、
+> テストの `TestOffsetNsSupport` がバージョンチェックを行う。
+
 第6・7章のHDL演習は `exercise.yaml` の `type: hdl` で定義します。
 
 ```yaml
@@ -240,7 +244,7 @@ hints:
   - "AND 演算子は & です"
 ```
 
-### 3.10 HDL演習の spec.yaml 書き方
+### 3.10 HDL演習の spec.yaml 書き方（deltasim §15 offset_ns 対応）
 
 ```yaml
 version: 1
@@ -265,9 +269,20 @@ cases:
 
 **spec.yaml 設計の原則**:
 1. 全入力パターンを網羅する（例: MUX は 2^3=8 ケース）
-2. 同サイクルでの set と check を含める
+2. 同サイクルでの set と check を含める（at:N で set & check）
 3. リセット優先確認を含める（順序回路）
 4. `wrong_codes/manifest.yaml` で FAIL を確認する
+5. §15 `offset_ns` を使ってサイクル途中の動作を確認する:
+   ```yaml
+   inputs:
+     - {at: 3, set: {b: 1}}          # クロックエッジ前に b=1 を設定
+     - {at: 3, offset_ns: 2, set: {b: 0}}  # エッジ後（27ns）に b=0 を設定
+   expected:
+     - {at: 3, offset_ns: 3, check: {y: 0}}  # 28ns で組み合わせ回路の反応を確認
+   ```
+   - `offset_ns` の範囲: `0 ≤ offset_ns < period_ns`（例: period_ns=10 なら 0〜9）
+   - **deltasim 748164e 以降が必要**（古いバージョンは offset_ns を無視）
+   - テストの `TestOffsetNsSupport` で自動チェック
 
 ## 5. アーキテクチャ概要
 
@@ -312,18 +327,23 @@ fpga_study/
 | Ch6 L3 D-FF | リセットなし | 動作中リセットケースで検出 |
 | Ch7 L2 カウンタ | 飽和版、0-9版、リセットなし | オーバーフロー＋動作中リセットで検出 |
 
-⚠️ **deltasim 整数サイクル制約（既知の制限、リリース1では許容）**: `assign q=rst?0:d`（組み合わせ回路）や非同期リセット（`always_ff @(posedge clk or posedge rst)`）は、クロックエッジ境界での入力変化のみでは同期DFFと区別できない。各 wrong_codes/manifest.yaml に `expected: PASS_KNOWN_LIMITATION` として明記し、README.md に理由を記載。
+#### wrong_codes の分類
 
-#### 既知制約の詳細
-
-| ファイル | 章 | 誤りの内容 | 制約の理由 |
-|---------|-----|-----------|-----------|
-| Ch06 L3 combinational.sv | 6章 L3 | `assign q = rst?0:d` | クロックエッジ境界での等価動作 |
-| Ch06 L3 async_reset.sv | 6章 L3 | `@(posedge clk or posedge rst)` | rst がクロックと同時変化 |
-| Ch06 L3 registered_comb.sv | 6章 L3 | `assign d_comb = ...; always_ff q <= d_comb;` | 正しいコードと機能的に等価 |
-| Ch07 L2 async_reset.sv | 7章 L2 | 同上（カウンタ版） | 同上 |
-
-**対応予定**: deltasim がサブサイクル刺激（クロックエッジ間の信号変化指定）に対応した時点で、統合テストは PASS_KNOWN_LIMITATION のアサートが壊れるため、その時点で manifest.yaml を `FAIL` に更新する。
+| ファイル | 章 | expected | 検出方法 |
+|---------|-----|---------|---------|
+| Ch06 L1 and_twostage.sv | 6章 L1 | **FAIL** | 同サイクルチェック（at:N で set & check） |
+| Ch06 L1 and_reg1.sv | 6章 L1 | **FAIL** | mid_cycle ケース（§15 offset_ns） |
+| Ch06 L2 sel_xor_a.sv | 6章 L2 | **FAIL** | 全8組み合わせ |
+| Ch06 L2 latch.sv | 6章 L2 | **FAIL** | latch_detection |
+| Ch06 L2 mux_reg1.sv | 6章 L2 | **FAIL** | mid_cycle ケース（§15 offset_ns） |
+| Ch06 L3 no_reset.sv | 6章 L3 | **FAIL** | 動作中リセットケース |
+| Ch06 L3 twostage.sv | 6章 L3 | **FAIL** | same_cycle_capture |
+| Ch06 L3 combinational.sv | 6章 L3 | **FAIL** | §15 hold_between_edges |
+| Ch06 L3 async_reset.sv | 6章 L3 | **FAIL** | §15 sync_reset_waits_for_edge |
+| Ch06 L3 reg_output.sv | 6章 L3 | **PASS_KNOWN_LIMITATION** | deltasim バグ修正後PASS、ブロッキング=のルール違反 |
+| Ch06 L3 registered_comb.sv | 6章 L3 | **PASS_KNOWN_LIMITATION** | 機能的に等価、コーディングルール違反 |
+| Ch07 L2 saturate_at_15.sv | 7章 L2 | **FAIL** | オーバーフローチェック |
+| Ch07 L2 async_reset.sv | 7章 L2 | **FAIL** | §15 sync_reset_waits_for_edge |
 
 CI は GitHub Actions で Linux + Windows の両方で実行する（`.github/workflows/ci.yml`）。
 

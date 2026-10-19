@@ -3,21 +3,21 @@ type: practice
 problems:
   - id: p1
     type: fill_number
-    question: "NOTゲートで入力が A=1 のとき、出力 Y はいくつですか？"
-    answer: 0
-    hint: "NOTゲートは入力を反転します（0→1、1→0）"
-    wrong_hint: "NOT: 1→0 に反転するので Y=0"
+    question: "XORゲートで A=1、B=0 のとき出力 Y はいくつですか？"
+    answer: 1
+    hint: "XOR は入力が異なるときだけ 1 です"
+    wrong_hint: "A=1 と B=0 は異なるので XOR の出力は 1 です"
 
   - id: p2
     type: fill_number
-    question: "XORゲートで A=0、B=0 のとき出力 Y はいくつですか？"
-    answer: 0
-    hint: "XOR は入力が異なるときだけ 1 です。同じ値のときは？"
-    wrong_hint: "A=0, B=0 は同じ値なので XOR の出力は 0 です"
+    question: "NOTゲートで入力が A=0 のとき、出力 Y はいくつですか？"
+    answer: 1
+    hint: "NOTゲートは入力を反転します（0→1、1→0）"
+    wrong_hint: "NOT: 0→1 に反転するので Y=1"
 
   - id: p3
     type: fill_number
-    question: "XORゲートで 4 通りの入力パターンのうち、出力が 1 になるパターンは何通りですか？"
-    answer: 2
-    hint: "XOR は入力が異なるときだけ 1 になります"
-    wrong_hint: "(0,1) と (1,0) の 2 通りが出力 1 です"
+    question: "NANDゲート（AND + NOT）で A=1、B=1 のとき出力 Y はいくつですか？"
+    answer: 0
+    hint: "NAND は AND の出力を反転します。AND(1,1)=1 を反転すると？"
+    wrong_hint: "AND(1,1)=1、NOT(1)=0 なので NAND(1,1)=0"

@@ -76,3 +76,11 @@ cases:
         check: {y: 1}
       - at: 7
         check: {y: 0}
+
+  - name: "mid_cycle_sel_change"
+    inputs:
+      - {at: 3, set: {sel: 1, a: 0, b: 1}}
+      - {at: 3, offset_ns: 2, set: {sel: 0}}
+    expected:
+      - {at: 3, check: {y: 1}}
+      - {at: 3, offset_ns: 3, check: {y: 0}}

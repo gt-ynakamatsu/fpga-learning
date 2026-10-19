@@ -240,6 +240,59 @@ class TestContentLoader:
             if "status" in ch:
                 assert ch["status"] in valid_statuses, f"{ch['id']}: invalid status {ch['status']}"
 
+    def test_exercise_quiz_no_duplicate_prompts(self, data_root):
+        """同一レッスンの exercise と quiz で同じ問題文がないことを確認"""
+        import yaml
+        for chapter_dir in sorted(data_root.iterdir()):
+            if not chapter_dir.is_dir():
+                continue
+            for lesson_dir in sorted(chapter_dir.iterdir()):
+                if not lesson_dir.is_dir():
+                    continue
+                ex_path = lesson_dir / "exercise.yaml"
+                quiz_path = lesson_dir / "quiz.yaml"
+                if not (ex_path.exists() and quiz_path.exists()):
+                    continue
+                ex = yaml.safe_load(ex_path.read_text())
+                quiz = yaml.safe_load(quiz_path.read_text())
+                if not (ex and quiz):
+                    continue
+                # type: hdl は比較対象外
+                if ex.get("type") == "hdl":
+                    continue
+                ex_questions = {p["question"].strip() for p in ex.get("problems", [])}
+                quiz_questions = {q["question"].strip() for q in quiz.get("questions", [])}
+                overlap = ex_questions & quiz_questions
+                assert not overlap, (
+                    f"{lesson_dir}: exercise と quiz に同じ問題文があります: {overlap}"
+                )
+
+    def test_exercises_no_duplicate_prompts_within_chapter(self, data_root):
+        """同一章内の exercise で同じ問題文がないことを確認"""
+        import yaml
+        for chapter_dir in sorted(data_root.iterdir()):
+            if not chapter_dir.is_dir():
+                continue
+            all_questions: dict[str, str] = {}  # question → lesson_id
+            for lesson_dir in sorted(chapter_dir.iterdir()):
+                if not lesson_dir.is_dir():
+                    continue
+                ex_path = lesson_dir / "exercise.yaml"
+                if not ex_path.exists():
+                    continue
+                ex = yaml.safe_load(ex_path.read_text())
+                if not ex or ex.get("type") == "hdl":
+                    continue
+                lesson_id = lesson_dir.name
+                for p in ex.get("problems", []):
+                    q = p["question"].strip()
+                    if q in all_questions:
+                        assert False, (
+                            f"{chapter_dir.name}/{lesson_id}: 演習問題が "
+                            f"{all_questions[q]} と重複しています: {q!r}"
+                        )
+                    all_questions[q] = lesson_id
+
     def test_quiz_has_no_status_field(self, data_root):
         """quiz.yaml には status フィールドがない（decisions 1）"""
         import yaml

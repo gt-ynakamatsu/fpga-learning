@@ -2,7 +2,7 @@ id: chapter02
 title: "論理ゲートと真理値表"
 description: "AND・OR・NOT・XORゲートのしくみを学び、回路パズルで実際に配線しよう"
 order: 2
-status: draft
+status: reviewed
 lessons:
   - lesson01
   - lesson02

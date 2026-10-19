@@ -3,21 +3,21 @@ type: practice
 problems:
   - id: p1
     type: fill_number
-    question: "ANDゲートで A=1、B=1 のとき出力 Y はいくつですか？（ANDパズルの答えを確認してみましょう）"
+    question: "ANDゲートで A=1、B=1 のとき出力 Y はいくつですか？"
     answer: 1
-    hint: "AND は両方が1のときだけ1を出力します"
+    hint: "AND は両方が 1 のときだけ 1 を出力します"
     wrong_hint: "真理値表：(0,0)→0、(0,1)→0、(1,0)→0、(1,1)→1"
 
   - id: p2
     type: fill_number
-    question: "XORゲートで A=0、B=0 のとき出力 Y はいくつですか？"
+    question: "ORゲートで A=0、B=0 のとき出力 Y はいくつですか？"
     answer: 0
-    hint: "XOR は入力が異なるときだけ1です。両方同じ場合は？"
-    wrong_hint: "A=0、B=0 は同じなので XOR の出力は 0 です"
+    hint: "OR は両方が 0 のときだけ 0 を出力します"
+    wrong_hint: "A=0 かつ B=0 なので OR の出力は 0 です"
 
   - id: p3
     type: fill_number
-    question: "NOTゲートで入力が A=1 のとき、出力 Y はいくつですか？"
-    answer: 0
-    hint: "NOT は入力を反転します（0→1、1→0）"
-    wrong_hint: "NOT: 1→0 に反転するので Y=0"
+    question: "NORゲート（OR + NOT）で A=0、B=0 のとき出力 Y はいくつですか？"
+    answer: 1
+    hint: "NOR は OR の出力を反転します。OR(0,0)=0 を反転すると？"
+    wrong_hint: "OR(0,0)=0、NOT(0)=1 なので NOR(0,0)=1"

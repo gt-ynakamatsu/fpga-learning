@@ -17,9 +17,9 @@ wrong_codes:
     reason: "else ブランチなし → ラッチ生成。latch_detection ケースで FAIL する"
 
   - file: mux_reg1.sv
-    expected: PASS_KNOWN_LIMITATION
+    expected: FAIL
     reason: >
       出力を 1 段 FF に通す（always_ff @(posedge clk) if(sel) y<=b; else y<=a;）。
-      at:N の同サイクルチェックでは入力が edge 前に確定しているため、
-      FF 経由でも正しい MUX と同じ値が取れる。
-      コーディングルール違反（組み合わせ MUX には FF 不要）として扱う。
+      mid_cycle_sel_change ケース: sel をエッジ後（offset_ns:2）に 0 に変更し、
+      offset_ns:3 で y=0（a=0）を確認する。組み合わせ MUX なら即座に y=0 になるが、
+      FF 経由では次のクロックエッジまで y=1 を保持するため FAIL する。
