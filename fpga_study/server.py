@@ -36,6 +36,7 @@ from fpga_study.progress import (
     save_hdl_result,
     save_practice_problem_result,
     save_puzzle_result,
+    save_quiz_answer,
     save_quiz_result,
 )
 from fpga_study.simulator import (
@@ -186,9 +187,21 @@ def create_app(
         if lesson_for_check:
             _check_visible(lesson_for_check.get("status"), "このレッスンは現在公開されていません")
         try:
-            return check_quiz_answer(
+            result = check_quiz_answer(
                 chapter_id, lesson_id, req.question_id, req.answer_index
             )
+            # 正解したらサーバー側で記録し、全問正解なら自動保存
+            if result["correct"] and lesson_for_check:
+                quiz = lesson_for_check.get("quiz") or {}
+                all_question_ids = [q["id"] for q in quiz.get("questions", [])]
+                exercise = load_exercise(chapter_id, lesson_id)
+                all_prob_ids = [p["id"] for p in (exercise or {}).get("problems", [])]
+                has_hdl = lesson_for_check.get("has_hdl_exercise", False)
+                save_quiz_answer(
+                    chapter_id, lesson_id, req.question_id,
+                    all_question_ids, all_prob_ids, has_hdl, db_path
+                )
+            return result
         except (FileNotFoundError, ValueError) as exc:
             raise HTTPException(status_code=404, detail=str(exc))
 
@@ -196,16 +209,16 @@ def create_app(
     async def api_quiz_complete(
         chapter_id: str, lesson_id: str, req: QuizCompleteRequest
     ) -> dict:
+        """
+        クライアントから呼ばれる完了通知エンドポイント。
+        クライアント送信の score/total は無視し、
+        DB に記録された quiz_answers_done から点数を再計算して保存する。
+        """
         lesson_info = load_lesson(chapter_id, lesson_id)
         if lesson_info:
             _check_visible(lesson_info.get("status"), "このレッスンは現在公開されていません")
-        exercise = load_exercise(chapter_id, lesson_id)
-        all_prob_ids = [p["id"] for p in (exercise or {}).get("problems", [])]
-        has_hdl = (lesson_info or {}).get("has_hdl_exercise", False)
-        return save_quiz_result(
-            chapter_id, lesson_id, req.score, req.total,
-            all_prob_ids, has_hdl, db_path
-        )
+        # サーバー側の記録を返す（クライアント送信値は無視）
+        return get_lesson_progress(chapter_id, lesson_id, db_path)
 
     # ─── 練習問題 (exercise) ─────────────────────────────
 

@@ -503,15 +503,7 @@ function buildQuizSection(questions, chapterId, lessonId) {
     const total = questions.length;
     section.innerHTML = '';
 
-    // 満点のとき自動保存
-    if (score === total) {
-      try {
-        await apiFetch(`/api/chapters/${chapterId}/lessons/${lessonId}/quiz/complete`, {
-          method: 'POST',
-          body: JSON.stringify({ score, total }),
-        });
-      } catch (_) {}
-    }
+    // 満点のとき: サーバー側が quiz/check の記録から自動保存するので追加呼び出し不要
 
     section.append(
       h('h2', {}, '📝 確認クイズ'),

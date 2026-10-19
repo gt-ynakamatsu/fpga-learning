@@ -37,6 +37,7 @@ def init_db(db_path: Optional[Path] = None) -> None:
                 puzzle_completed INTEGER NOT NULL DEFAULT 0,
                 exercise_problems_done TEXT NOT NULL DEFAULT '[]',
                 hdl_completed INTEGER NOT NULL DEFAULT 0,
+                quiz_answers_done TEXT NOT NULL DEFAULT '[]',
                 completed_at TEXT,
                 updated_at TEXT NOT NULL
             )
@@ -52,6 +53,7 @@ def init_db(db_path: Optional[Path] = None) -> None:
         for col, ddl in [
             ("exercise_problems_done", "TEXT NOT NULL DEFAULT '[]'"),
             ("hdl_completed", "INTEGER NOT NULL DEFAULT 0"),
+            ("quiz_answers_done", "TEXT NOT NULL DEFAULT '[]'"),
         ]:
             try:
                 conn.execute(f"ALTER TABLE lesson_progress ADD COLUMN {col} {ddl}")
@@ -173,6 +175,48 @@ def _ensure_row(
 
 # ── 各採点結果の保存 ───────────────────────────────────────────────
 
+def save_quiz_answer(
+    chapter_id: str,
+    lesson_id: str,
+    question_id: str,
+    all_question_ids: list[str],
+    all_problem_ids: list[str] = (),
+    has_hdl: bool = False,
+    db_path: Optional[Path] = None,
+) -> dict:
+    """
+    クイズの1問の正解を記録する（サーバー側で点数を管理）。
+    全問正解になったら自動的に quiz_score を更新し完了条件を再評価する。
+    """
+    conn = _get_conn(db_path)
+    key = f"{chapter_id}/{lesson_id}"
+    now = datetime.now(timezone.utc).isoformat()
+    try:
+        _ensure_row(conn, key, chapter_id, lesson_id, now)
+        row = conn.execute(
+            "SELECT quiz_answers_done FROM lesson_progress WHERE lesson_key=?", (key,)
+        ).fetchone()
+        done = json.loads(row["quiz_answers_done"] or "[]")
+        if question_id not in done:
+            done.append(question_id)
+
+        quiz_total = len(all_question_ids)
+        score = sum(1 for qid in all_question_ids if qid in done)
+
+        with conn:
+            conn.execute(
+                "UPDATE lesson_progress SET quiz_answers_done=?, quiz_score=?, quiz_total=?, updated_at=? WHERE lesson_key=?",
+                (json.dumps(done), score, quiz_total, now, key),
+            )
+
+        if _check_completed(conn, key, list(all_problem_ids), has_hdl, quiz_total):
+            _apply_completed(conn, key)
+        _check_and_award_badges(conn, db_path)
+        return get_lesson_progress(chapter_id, lesson_id, db_path)
+    finally:
+        conn.close()
+
+
 def save_quiz_result(
     chapter_id: str,
     lesson_id: str,
@@ -182,23 +226,32 @@ def save_quiz_result(
     has_hdl: bool = False,
     db_path: Optional[Path] = None,
 ) -> dict:
-    """クイズ結果を保存し、完了条件を再評価する"""
+    """
+    クイズ結果を保存する（後方互換用）。
+    サーバー側の quiz_answers_done を優先する。
+    クライアントから送られた score/total は DB に記録済みの値より高い場合のみ使用。
+    """
     conn = _get_conn(db_path)
     key = f"{chapter_id}/{lesson_id}"
     now = datetime.now(timezone.utc).isoformat()
     try:
         _ensure_row(conn, key, chapter_id, lesson_id, now)
         existing = conn.execute(
-            "SELECT quiz_score FROM lesson_progress WHERE lesson_key=?", (key,)
+            "SELECT quiz_score, quiz_total FROM lesson_progress WHERE lesson_key=?", (key,)
         ).fetchone()
-        # スコアが改善したときだけ更新
-        if existing is None or score > existing["quiz_score"]:
+        # サーバー側の記録を優先（クライアント送信値より低い場合のみ更新しない）
+        db_score = existing["quiz_score"] if existing else 0
+        db_total = existing["quiz_total"] if existing else 0
+        # 既にDBに正しい値があれば使う
+        effective_score = max(db_score, score)
+        effective_total = total if total > 0 else db_total
+        if effective_score != db_score or effective_total != db_total:
             with conn:
                 conn.execute(
                     "UPDATE lesson_progress SET quiz_score=?, quiz_total=?, updated_at=? WHERE lesson_key=?",
-                    (score, total, now, key),
+                    (effective_score, effective_total, now, key),
                 )
-        if _check_completed(conn, key, list(all_problem_ids), has_hdl, total):
+        if _check_completed(conn, key, list(all_problem_ids), has_hdl, effective_total):
             _apply_completed(conn, key)
         _check_and_award_badges(conn, db_path)
         return get_lesson_progress(chapter_id, lesson_id, db_path)

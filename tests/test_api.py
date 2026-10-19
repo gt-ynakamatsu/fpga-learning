@@ -89,15 +89,15 @@ class TestQuizAPI:
         assert res.status_code == 404
 
     def test_quiz_complete(self, client):
+        """quiz/complete はクライアント送信の score を無視し DB の値を返す"""
         res = client.post(
             "/api/chapters/chapter01/lessons/lesson01/quiz/complete",
-            json={"score": 4, "total": 4},
+            json={"score": 4, "total": 4},  # 無視される
         )
         assert res.status_code == 200
         data = res.json()
-        # クイズ満点だが練習問題が未完了なので completed=0
-        assert data["completed"] == 0
-        assert data["quiz_score"] == 4
+        # サーバー側では未回答なので quiz_score=0
+        assert data["quiz_score"] == 0
 
 
 class TestPuzzleAPI:
@@ -138,6 +138,41 @@ class TestPuzzleAPI:
         assert res.status_code == 404
 
 
+class TestQuizServerSideScore:
+    """クイズ点数はサーバー側で管理される（クライアント送信値を無視）"""
+
+    def test_quiz_complete_with_fake_score_does_not_complete(self, client):
+        """クライアントが score=total を送っても、答えていなければ完了にならない"""
+        res = client.post(
+            "/api/chapters/chapter01/lessons/lesson01/quiz/complete",
+            json={"score": 4, "total": 4},  # 答えていないのに満点を送る
+        )
+        assert res.status_code == 200
+        prog = res.json()
+        # サーバー側の記録（0点）を使うので completed=0
+        assert prog["completed"] == 0, (
+            "クライアント送信の score=total を信じて completed=1 になってしまいました"
+        )
+        assert prog["quiz_score"] == 0, (
+            f"サーバー側では0点のはずが {prog['quiz_score']} になっています"
+        )
+
+    def test_quiz_check_all_correct_auto_saves(self, client):
+        """quiz/check で全問正解したとき自動的に完了が記録される"""
+        # 全問に正解する
+        for q_id, ans_idx in [("q1", 1), ("q2", 2), ("q3", 1), ("q4", 2)]:
+            res = client.post(
+                "/api/chapters/chapter01/lessons/lesson01/quiz/check",
+                json={"question_id": q_id, "answer_index": ans_idx},
+            )
+            assert res.status_code == 200
+
+        # 練習問題も全問正解しないと completed=1 にはならない
+        # （進捗のクイズスコアが更新されているか確認）
+        prog = client.get("/api/progress/chapter01/lesson01").json()
+        assert prog["quiz_score"] > 0, "quiz/check 後にスコアが記録されていません"
+
+
 class TestNoTmpPaths:
     """API レスポンスに /tmp パスが含まれないこと"""
 
@@ -157,26 +192,30 @@ class TestNoTmpPaths:
 
 
 class TestDraftEndpoints404:
-    """show_drafts なし起動時に draft レッスンの全エンドポイントが 404 を返すこと"""
+    """show_drafts なし起動時に draft のコンテンツが 404 を返すこと"""
 
-    def test_get_chapter_draft_returns_404(self, client):
-        """GET /api/chapters/{draft_chapter} が 404"""
-        # chapter03 は draft のまま
-        # デフォルトサーバーは show_drafts=False のはず
-        # conftest の client fixture が show_drafts=False で起動されていること前提
-        # 実際の draft 章がなければスキップ
-        import pytest
-        from fpga_study.content.loader import load_chapter
-        ch = load_chapter("chapter03")
-        if not ch or ch.get("status") not in ("draft", "review"):
-            pytest.skip("chapter03 が draft/review ではありません")
-        # default client (show_drafts=False) では 404 になること
-        res = client.get("/api/chapters/chapter03")
-        # reviewd なら 200、draft なら 404
-        if ch.get("status") == "reviewed":
-            assert res.status_code == 200
-        else:
-            assert res.status_code == 404, f"draft 章が 404 になっていません: {res.status_code}"
+    def test_get_chapter_draft_returns_404(self, tmp_db):
+        """GET /api/chapters/{draft_chapter} が 404（monkeypatch で draft 章を作成）"""
+        from unittest.mock import patch
+        from fastapi.testclient import TestClient
+        from fpga_study.server import create_app
+
+        # show_drafts=False のサーバー
+        app = create_app(db_path=tmp_db, show_drafts=False)
+        client = TestClient(app)
+
+        # load_chapter を mock して draft 章を返す
+        draft_ch = {"id": "chapter03", "title": "test", "order": 3,
+                    "status": "draft", "lessons": []}
+        with patch("fpga_study.server.load_chapter", return_value=draft_ch):
+            res = client.get("/api/chapters/chapter03")
+        assert res.status_code == 404, f"draft 章が 404 になっていません: {res.status_code}"
+
+    def test_get_chapter_reviewed_returns_200(self, client):
+        """GET /api/chapters/{reviewed_chapter} は 200"""
+        # chapter01 は reviewed
+        res = client.get("/api/chapters/chapter01")
+        assert res.status_code == 200
 
 
 class TestExerciseAPI:
@@ -272,16 +311,17 @@ class TestProgressAPI:
         assert "completed" in data
 
     def test_progress_after_quiz(self, client):
+        """quiz/complete はクライアント送信スコアを無視するので進捗に記録されない"""
         client.post(
             "/api/chapters/chapter01/lessons/lesson01/quiz/complete",
-            json={"score": 4, "total": 4},
+            json={"score": 4, "total": 4},  # 無視される
         )
         res = client.get("/api/progress")
         assert res.status_code == 200
         data = res.json()
-        # クイズ満点のみでは completed にならない（練習問題が未完了）
+        # サーバー側は未回答なので score=0
         quiz_scored = [p for p in data["progress"] if p["quiz_score"] > 0]
-        assert len(quiz_scored) == 1
+        assert len(quiz_scored) == 0
 
     def test_homepage_returns_html(self, client):  # noqa: E301
         res = client.get("/")
