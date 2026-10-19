@@ -1,0 +1,42 @@
+# wrong_codes/manifest.yaml — Ch06 Lesson03 (D-FF)
+# expected フィールド:
+#   FAIL                  : deltasim で FAIL することが確認済み
+#   PASS_KNOWN_LIMITATION : 整数サイクル制約により現在 PASS する既知の制約
+#                           deltasim がサブサイクル刺激に対応次第 FAIL に変更する
+
+wrong_codes:
+  - file: no_reset.sv
+    expected: FAIL
+    reason: "rst チェックなし。rst_overrides_d / sync_reset_during_operation ケースで FAIL する"
+
+  - file: twostage.sv
+    expected: FAIL
+    reason: "D→Q1→Q（2段パイプライン）。same_cycle_capture ケース（at:4 check q=1）で FAIL する"
+
+  - file: reg_output.sv
+    expected: FAIL
+    reason: >
+      always_ff 内でブロッキング代入 = を使用。deltasim ではブロッキング代入が
+      always_ff 内で期待通りに動作しないため FAIL する。
+
+  - file: combinational.sv
+    expected: PASS_KNOWN_LIMITATION
+    reason: >
+      assign q = rst?0:d は組み合わせ回路（FF なし）だが、
+      deltasim の整数サイクル検査ではクロックエッジ境界での観測値が同一になる。
+      deltasim がサブサイクル刺激に対応した時点で FAIL に変更すること。
+
+  - file: async_reset.sv
+    expected: PASS_KNOWN_LIMITATION
+    reason: >
+      always_ff @(posedge clk or posedge rst) は非同期リセットだが、
+      rst の変化がクロックエッジと同時のため同期リセットと区別できない。
+      deltasim がサブサイクル刺激に対応した時点で FAIL に変更すること。
+
+  - file: registered_comb.sv
+    expected: PASS_KNOWN_LIMITATION
+    reason: >
+      assign d_comb = rst?0:d; always_ff @(posedge clk) q <= d_comb; は
+      正しいコードと整数サイクル境界での動作が同一になる。
+      組み合わせ論理で rst を処理してから FF で取り込む構成で、
+      クロックエッジ時点での d_comb 値が正しいコードと一致するため PASS する。

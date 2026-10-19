@@ -26,6 +26,32 @@ count:    ══0════╗══1══╗══2══╗══3══╗
 
 ---
 
+> ## ⚠️ 必ず守るルール
+>
+> **順序回路（カウンタ・FFを使う回路）は、必ず `always_ff @(posedge clk)` の中に書いてください。**
+>
+> リセットは、そのブロックの中で `if (rst)` を使って処理します（同期リセット）。
+>
+> ```systemverilog
+> // ✅ 正しい書き方（同期リセット）
+> always_ff @(posedge clk) begin
+>     if (rst) count <= 4'b0;        // rst=1 でリセット
+>     else     count <= count + 1;   // 通常はカウントアップ
+> end
+> ```
+>
+> ```systemverilog
+> // ❌ よくある誤り（リセット処理がない）
+> always_ff @(posedge clk) begin
+>     count <= count + 1;  // rst を見ていない
+> end
+>
+> // ❌ よくある誤り（感度リストに rst を入れると非同期リセットになります）
+> always_ff @(posedge clk or posedge rst) begin ... end
+> ```
+
+---
+
 ## 演習：4ビットカウンタを実装しよう
 
 ### 仕様
@@ -58,6 +84,7 @@ endmodule
 
 - 波形ビューアで信号の時系列変化を視覚的に確認できる
 - clk（クロック）、rst（リセット）、count（カウンタ値）を見ながら動作を確認
+- **順序回路は `always_ff @(posedge clk)` の中に書く**（必須ルール）
 - カウンタ: リセット時 0、それ以外は +1（4ビットは 0〜15 でくり返す）
 
 **下の演習エリアで実装して、波形を確認してみましょう！**

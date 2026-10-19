@@ -14,6 +14,30 @@ end
 
 ---
 
+> ## ⚠️ 必ず守るルール
+>
+> **順序回路（記憶を持つ回路）は、必ず `always_ff @(posedge clk)` の中に書いてください。**
+>
+> リセットは、そのブロックの中で `if (rst)` を使って処理します（同期リセット）。
+>
+> ```systemverilog
+> // ✅ 正しい書き方
+> always_ff @(posedge clk) begin
+>     if (rst) q <= 1'b0;   // リセット時は 0 に（同期リセット）
+>     else     q <= d;       // 通常動作
+> end
+> ```
+>
+> ```systemverilog
+> // ❌ よくある誤り（assign は組み合わせ回路になり、FF になりません）
+> assign q = rst ? 1'b0 : d;
+>
+> // ❌ よくある誤り（感度リストに rst を入れると非同期リセットになります）
+> always_ff @(posedge clk or posedge rst) begin ... end
+> ```
+
+---
+
 ## Dフリップフロップの実装
 
 ```systemverilog
@@ -72,9 +96,9 @@ end
 
 ## まとめ
 
-- `always_ff @(posedge clk)` でクロック同期回路を記述する
+- **順序回路は `always_ff @(posedge clk)` の中に書く**（必須ルール）
+- **リセットは `if (rst) q <= 0;` でブロック内に書く**（同期リセット）
 - 非ブロッキング代入 `<=` を使う
-- 同期リセット: `if (rst) q <= 0;` で rst=1 のときリセット
-- `1'b0` などの数値リテラルでビット幅と値を指定する
+- `assign` や感度リストへの `rst` 追加は誤り
 
 **下の演習エリアで D-FF を実装してみましょう！**

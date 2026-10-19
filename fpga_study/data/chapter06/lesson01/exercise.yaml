@@ -2,7 +2,6 @@ id: ex_and_gate
 title: "ANDゲートを assign で実装しよう"
 type: hdl
 difficulty: 1
-status: draft
 description: |
   module and_gate を完成させてください。
   入力 a と b の AND（論理積）を出力 y に assign してください。
@@ -10,7 +9,6 @@ spec_file: spec.yaml
 answer_file: answer.sv
 template: |
   module and_gate(
-      input  logic clk,  // シミュレーション用クロック
       input  logic a,    // 入力A
       input  logic b,    // 入力B
       output logic y     // 出力Y = A AND B

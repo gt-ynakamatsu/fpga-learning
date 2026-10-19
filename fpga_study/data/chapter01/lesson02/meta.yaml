@@ -2,5 +2,5 @@ id: lesson02
 title: "2進数のしくみ"
 description: "0と1だけで数を数える方法を、桁の概念から丁寧に学ぼう"
 estimated_min: 12
-status: draft
+status: reviewed
 has_exercise: true

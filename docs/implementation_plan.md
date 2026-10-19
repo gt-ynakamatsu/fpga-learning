@@ -6,9 +6,8 @@
 
 ## 1. 全体方針
 
-- **最初のリリース（本ドキュメントの対象）**: 第1〜7章の骨格＋第1・2章の教材を実装する。第8章・ミニ課題・実機ボード対応は次リリース以降。
-- **今回の実行で完成させる範囲**: 骨格 + 第1章（全3レッスン）+ 第2章（回路パズル含む全3レッスン）
-- 第3〜7章は次の実行で追加する。
+- **最初のリリース（本ドキュメントの対象）**: 第1〜7章の全教材を実装する。第8章・ミニ課題・実機ボード対応は次リリース以降（仕様書§8確定）。
+- **現在の状態**: 第1〜7章の骨格と教材（下書き〜レビュー済み）が実装済み。
 
 ---
 
@@ -16,13 +15,13 @@
 
 | 章 | タイトル | 状態 | 備考 |
 |----|---------|------|------|
-| 第1章 | 2進数・16進数とビット | ✅ 実装済み（draft） | lesson01〜03、クイズ・演習あり |
-| 第2章 | 論理ゲートと真理値表 | ✅ 実装済み（draft） | lesson01〜03、回路パズルあり |
-| 第3章 | 組み合わせ回路 | ✅ 実装済み（draft） | lesson01〜03、演習・回路パズルあり |
-| 第4章 | 順序回路 | ✅ 実装済み（draft） | lesson01〜03、演習・順序回路パズルあり |
-| 第5章 | ステートマシン | ✅ 実装済み（draft） | lesson01〜03、演習あり |
-| 第6章 | HDL入門（SystemVerilog） | 🔄 実装中（draft） | deltasim CLI連携・HDL演習あり |
-| 第7章 | シミュレーションと波形 | 🔄 実装中（draft） | deltasim CLI連携・波形ビューアあり |
+| 第1章 | 2進数・16進数とビット | ✅ reviewed | lesson01〜03、クイズ・演習あり |
+| 第2章 | 論理ゲートと真理値表 | 🔄 draft | lesson01〜03、回路パズル・演習あり |
+| 第3章 | 組み合わせ回路 | 🔄 draft | lesson01〜03、演習・回路パズルあり |
+| 第4章 | 順序回路 | ✅ reviewed | lesson01〜03、演習・順序回路パズルあり |
+| 第5章 | ステートマシン | ✅ reviewed | lesson01〜03、演習あり |
+| 第6章 | HDL入門（SystemVerilog） | 🔄 draft | deltasim CLI連携・HDL演習あり |
+| 第7章 | シミュレーションと波形 | 🔄 draft | deltasim CLI連携・波形ビューアあり |
 | 第8章 | FPGAとは何か | 対象外 | 次リリース以降（仕様書§8） |
 
 > **注**: 第1〜7章が最初のリリース対象（仕様書§8確定）。第8章・ミニ課題・実機ボード対応は次リリース以降。
@@ -89,7 +88,7 @@ has_hdl_exercise: false       # 省略時 false（HDL演習がある場合 true�
 ### 3.4 クイズ定義 (quiz.yaml)
 
 ```yaml
-status: draft
+# status フィールドは廃止（decisions 1）。meta.yaml で管理する。
 questions:
   - id: q1
     question: "問題文"
@@ -108,7 +107,7 @@ questions:
 id: puzzle_and_gate
 title: "パズルのタイトル"
 description: "説明文"
-status: draft
+# status フィールドは廃止（decisions 1）。meta.yaml で管理する。
 inputs:
   - name: A
   - name: B
@@ -130,7 +129,7 @@ target_truth_table:
 2. `meta.yaml`（章）を記述（`status: draft` を忘れずに）
 3. レッスンディレクトリを追加し、`meta.yaml`・`content.md`・`quiz.yaml` を記述
 4. サーバーを再起動（コードは修正不要）
-5. 仕様考案係による内容確認後、`status` を `review` → `published` に変更
+5. 仕様考案係による内容確認後、`status` を `review` → `reviewed` → `published` と更新
 
 ---
 
@@ -221,6 +220,54 @@ problems:
     wrong_hint: "ビット数を使って計算してみましょう"
 ```
 
+### 3.9 HDL演習定義 (exercise.yaml, type: hdl)
+
+第6・7章のHDL演習は `exercise.yaml` の `type: hdl` で定義します。
+
+```yaml
+id: ex_and_gate
+title: "ANDゲートを assign で実装しよう"
+type: hdl
+difficulty: 1          # 1=穴埋め1行, 2=部分実装, 3=全部書く
+spec_file: spec.yaml   # 採点に使う deltasim 仕様YAML
+answer_file: answer.sv # 正解例（deltasim でPASS確認済み）
+template: |
+  module and_gate(input logic a, b, output logic y);
+      assign y = /* ここ */;
+  endmodule
+hints:
+  - "AND 演算子は & です"
+```
+
+### 3.10 HDL演習の spec.yaml 書き方
+
+```yaml
+version: 1
+top: and_gate
+clock:
+  signal: clk
+  period_ns: 10
+reset:
+  duration_cycles: 2
+sim:
+  cycles: 20
+  seed: 42
+cases:
+  - name: "11_gives_1"
+    inputs:
+      - at: 3
+        set: {a: 1, b: 1}
+    expected:
+      - at: 3           # 組み合わせ回路は同サイクルで確認
+        check: {y: 1}
+```
+
+**spec.yaml 設計の原則**:
+1. 全入力パターンを網羅する（例: MUX は 2^3=8 ケース）
+2. 同サイクルでの set と check を含める
+3. リセット優先確認を含める（順序回路）
+4. `wrong_codes/manifest.yaml` で FAIL を確認する
+
 ## 5. アーキテクチャ概要
 
 ```
@@ -264,7 +311,18 @@ fpga_study/
 | Ch6 L3 D-FF | リセットなし | 動作中リセットケースで検出 |
 | Ch7 L2 カウンタ | 飽和版、0-9版、リセットなし | オーバーフロー＋動作中リセットで検出 |
 
-⚠️ **deltasim 整数サイクル制約**: `assign q=rst?0:d`（組み合わせ回路）や非同期リセットは、クロックエッジ境界での入力変化のみでは区別不可。wrong_codes/README.md に詳細を記載。
+⚠️ **deltasim 整数サイクル制約（既知の制限、リリース1では許容）**: `assign q=rst?0:d`（組み合わせ回路）や非同期リセット（`always_ff @(posedge clk or posedge rst)`）は、クロックエッジ境界での入力変化のみでは同期DFFと区別できない。各 wrong_codes/manifest.yaml に `expected: PASS_KNOWN_LIMITATION` として明記し、README.md に理由を記載。
+
+#### 既知制約の詳細
+
+| ファイル | 章 | 誤りの内容 | 制約の理由 |
+|---------|-----|-----------|-----------|
+| Ch06 L3 combinational.sv | 6章 L3 | `assign q = rst?0:d` | クロックエッジ境界での等価動作 |
+| Ch06 L3 async_reset.sv | 6章 L3 | `@(posedge clk or posedge rst)` | rst がクロックと同時変化 |
+| Ch06 L3 registered_comb.sv | 6章 L3 | `assign d_comb = ...; always_ff q <= d_comb;` | 正しいコードと機能的に等価 |
+| Ch07 L2 async_reset.sv | 7章 L2 | 同上（カウンタ版） | 同上 |
+
+**対応予定**: deltasim がサブサイクル刺激（クロックエッジ間の信号変化指定）に対応した時点で、統合テストは PASS_KNOWN_LIMITATION のアサートが壊れるため、その時点で manifest.yaml を `FAIL` に更新する。
 
 CI は GitHub Actions で Linux + Windows の両方で実行する（`.github/workflows/ci.yml`）。
 
@@ -272,9 +330,8 @@ CI は GitHub Actions で Linux + Windows の両方で実行する（`.github/wo
 
 ## 7. 未対応事項（次にやるべきこと）
 
-1. **第3〜7章の教材作成**: 組み合わせ回路・順序回路・ステートマシン・HDL・シミュレーション
-2. **HDL演習機能の実装**: `fpga_study/server.py` にHDL提出エンドポイントを追加、`DeltasimCLISimulator.run()` を実際の教材フローに組み込む
-3. **deltasim の仕様YAML形式**: 教材ごとにどのような `spec.yaml` を用意するか設計が必要
-4. **教材レビューフロー**: `status: review` → `reviewed` → `published` の確認フロー整備
+1. **HDL演習機能のUI実装**: `fpga_study/server.py` にHDL提出エンドポイントを追加、フロントエンドで採点結果・VCD波形を表示する
+2. **教材レビューフロー整備**: `status: review` → `reviewed` → `published` のワークフロー
+3. **deltasim PASS_KNOWN_LIMITATION の解消**: deltasim がサブサイクル刺激に対応次第、wrong_codes の manifest.yaml を更新する
 5. **LLMヒント機能（任意）**: 「なぜ動かないの？」に答えるローカルLLM連携
 6. **実機ボード対応**: 仕様考案係との調整後に対応

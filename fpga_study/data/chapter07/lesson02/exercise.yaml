@@ -2,7 +2,6 @@ id: ex_ch07_l02
 title: "4ビットカウンタを always_ff で実装しよう"
 type: hdl
 difficulty: 2
-status: draft
 description: |
   module counter4 を完成させてください。
   同期リセット（rst=1 で 0 に戻る）付きの4ビットカウンタです。
@@ -22,6 +21,9 @@ template: |
       end
   endmodule
 hints:
+  - "【必須ルール】順序回路は必ず always_ff @(posedge clk) begin ... end の中に書いてください"
+  - "【必須ルール】リセットは if (rst) count <= 0; のように always_ff ブロックの中で処理します（同期リセット）"
+  - "感度リストに rst を入れる（always_ff @(posedge clk or posedge rst)）のは誤りです"
   - "リセット時は 4'b0 または 4'd0（4ビットの0）を代入"
   - "+1 するには count + 4'b1 または count + 1"
   - "4ビットは15の次に自動的に0に戻ります（オーバーフロー）"

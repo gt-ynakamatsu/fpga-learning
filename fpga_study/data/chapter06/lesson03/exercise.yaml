@@ -2,7 +2,6 @@ id: ex_ch06_l03
 title: "Dフリップフロップを always_ff で実装しよう"
 type: hdl
 difficulty: 2
-status: draft
 description: |
   module d_ff を完成させてください。
   clk の立ち上がりで rst=1 ならリセット（q=0）、rst=0 なら d を q に記録します。
@@ -23,6 +22,9 @@ template: |
       end
   endmodule
 hints:
+  - "【必須ルール】順序回路は必ず always_ff @(posedge clk) begin ... end の中に書いてください"
+  - "【必須ルール】リセットは if (rst) q <= 0; のように always_ff ブロックの中で処理します（同期リセット）"
+  - "assign q = ... のように FF の外で書くのは誤りです"
   - "リセット条件は rst です（rst=1 のときリセット）"
   - "リセット時は 1'b0（1ビットの0）を代入します"
   - "通常時は入力 d を q に代入します"

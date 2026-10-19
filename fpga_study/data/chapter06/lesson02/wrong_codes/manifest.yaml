@@ -1,0 +1,21 @@
+# wrong_codes/manifest.yaml — Ch06 Lesson02 (2:1 MUX)
+# expected フィールド:
+#   FAIL                  : deltasim で FAIL することが確認済み
+#   PASS_KNOWN_LIMITATION : 整数サイクル制約により現在 PASS する既知の制約
+#                           deltasim がサブサイクル刺激に対応次第 FAIL に変更する
+
+wrong_codes:
+  - file: sel_xor_a.sv
+    expected: FAIL
+    reason: "y = sel ^ a は sel=1,a=0,b=0（期待 y=0）と sel=1,a=1,b=1（期待 y=1）で誤った出力を返す"
+
+  - file: a_or_sel_and_b.sv
+    expected: FAIL
+    reason: "y = a|(sel&b) は sel=1,a=1,b=0（期待 y=0）のとき誤って y=1 を返す"
+
+  - file: latch.sv
+    expected: FAIL
+    reason: >
+      else ブランチがない（else if(a) のみ）ためラッチが生成される。
+      sel=1,b=1 の後で sel=0,a=0 にすると y が 1 のまま保持される。
+      latch_detection ケースで FAIL する。

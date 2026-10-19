@@ -11,11 +11,13 @@ sim:
   cycles: 40
   seed: 42
 cases:
-  - name: "capture_d1"
+  - name: "same_cycle_capture"
     inputs:
       - at: 4
         set: {d: 1}
     expected:
+      - at: 4
+        check: {q: 1}
       - at: 5
         check: {q: 1}
   - name: "capture_d0_after_d1"
@@ -34,11 +36,22 @@ cases:
       - at: 4
         set: {d: 1}
     expected:
+      - at: 4
+        check: {q: 1}
       - at: 5
         check: {q: 1}
       - at: 6
         check: {q: 1}
-      - at: 7
+  - name: "rst_overrides_d"
+    inputs:
+      - at: 4
+        set: {d: 1, rst: 1}
+      - at: 5
+        set: {rst: 0, d: 1}
+    expected:
+      - at: 4
+        check: {q: 0}
+      - at: 5
         check: {q: 1}
   - name: "sync_reset_during_operation"
     inputs:

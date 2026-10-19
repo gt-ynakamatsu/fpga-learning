@@ -14,54 +14,65 @@ cases:
       - at: 3
         set: {sel: 0, a: 0, b: 0}
     expected:
-      - at: 5
+      - at: 3
         check: {y: 0}
   - name: "sel0_a0_b1"
     inputs:
       - at: 3
         set: {sel: 0, a: 0, b: 1}
     expected:
-      - at: 5
+      - at: 3
         check: {y: 0}
   - name: "sel0_a1_b0"
     inputs:
       - at: 3
         set: {sel: 0, a: 1, b: 0}
     expected:
-      - at: 5
+      - at: 3
         check: {y: 1}
   - name: "sel0_a1_b1"
     inputs:
       - at: 3
         set: {sel: 0, a: 1, b: 1}
     expected:
-      - at: 5
+      - at: 3
         check: {y: 1}
   - name: "sel1_a0_b0"
     inputs:
       - at: 3
         set: {sel: 1, a: 0, b: 0}
     expected:
-      - at: 5
+      - at: 3
         check: {y: 0}
   - name: "sel1_a0_b1"
     inputs:
       - at: 3
         set: {sel: 1, a: 0, b: 1}
     expected:
-      - at: 5
+      - at: 3
         check: {y: 1}
   - name: "sel1_a1_b0"
     inputs:
       - at: 3
         set: {sel: 1, a: 1, b: 0}
     expected:
-      - at: 5
+      - at: 3
         check: {y: 0}
   - name: "sel1_a1_b1"
     inputs:
       - at: 3
         set: {sel: 1, a: 1, b: 1}
     expected:
-      - at: 5
+      - at: 3
         check: {y: 1}
+  - name: "latch_detection"
+    inputs:
+      - at: 3
+        set: {sel: 1, a: 0, b: 1}
+      - at: 6
+        set: {sel: 0, a: 0, b: 1}
+    expected:
+      - at: 4
+        check: {y: 1}
+      - at: 7
+        check: {y: 0}

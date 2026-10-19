@@ -37,7 +37,6 @@ endmodule
 
 ```systemverilog
 module and_gate (
-    input  logic clk,   // クロック（シミュレーション用）
     input  logic a,     // 入力A
     input  logic b,     // 入力B
     output logic y      // 出力Y
