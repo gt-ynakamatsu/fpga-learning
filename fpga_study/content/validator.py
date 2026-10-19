@@ -39,10 +39,13 @@ LESSON_META_SCHEMA: dict[str, Any] = {
         "estimated_min":   {"type": "integer", "minimum": 1},
         # decisions 1: status は meta.yaml のみ。quiz/puzzle には持たせない
         "status":          {"type": "string", "enum": STATUS_ENUM},
-        # decisions 2: has_puzzle / has_exercise は省略時 false の任意項目
-        "has_puzzle":      {"type": "boolean"},
-        "has_exercise":    {"type": "boolean"},
-        "has_hdl_exercise":{"type": "boolean"},
+        # decisions 2: has_puzzle / has_exercise / has_hdl_exercise は省略時 false の任意項目
+        # has_exercise    = exercise.yaml に通常の練習問題がある（fill_number/fill_text 等）
+        # has_hdl_exercise = HDL演習（exercise.yaml の type: hdl）のみ → has_exercise は false
+        # has_puzzle      = puzzle.yaml がある（回路パズル）
+        "has_puzzle":       {"type": "boolean"},
+        "has_exercise":     {"type": "boolean"},
+        "has_hdl_exercise": {"type": "boolean"},
     },
 }
 

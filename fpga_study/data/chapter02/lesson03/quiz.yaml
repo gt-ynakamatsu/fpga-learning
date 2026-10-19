@@ -20,11 +20,11 @@ questions:
     explanation: "XORは入力が異なるとき1を出します。同じとき1にしたければ、XORの後にNOTを通す（XNOR）と、同じとき1、異なるとき0になります。"
 
   - id: q3
-    question: "ANDゲートで入力が A=1、B=0 のとき、出力 Y はいくつですか？"
+    question: "ANDゲートとXORゲートで入力が A=1、B=1 のとき、それぞれの出力はどうなりますか？"
     options:
-      - "Y=0（両方が1のときだけ1）"
-      - "Y=1（どちらか1でも1）"
-      - "Y=1（A=1なので1）"
-      - "Y=不定"
-    answer: 0
-    explanation: "ANDゲートは両方の入力が1のときだけ1を出します。A=1、B=0 なのでB=0があるため Y=0 です。"
+      - "AND=1、XOR=1"
+      - "AND=1、XOR=0"
+      - "AND=0、XOR=1"
+      - "AND=0、XOR=0"
+    answer: 1
+    explanation: "AND は両方が 1 なので出力 1。XOR は入力が同じ（どちらも 1）なので出力 0。AND=1、XOR=0 です。"

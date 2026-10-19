@@ -1,0 +1,18 @@
+# wrong_codes/manifest.yaml — Ch06 Lesson01 (AND gate)
+# expected フィールド:
+#   FAIL                     : spec で確実に FAIL する
+#   PASS_KNOWN_LIMITATION     : deltasim サブサイクル対応後に FAIL になる予定
+#   RULE_VIOLATION_UNDETECTABLE: スタイル違反だが動作上は正しく、サブサイクル対応後も PASS のまま
+#   FAIL_DUE_TO_DELTASIM_BUG  : deltasim バグで現在 FAIL（バグ修正後は PASS になる予定）
+
+wrong_codes:
+  - file: and_twostage.sv
+    expected: FAIL
+    reason: "2段 FF パイプライン。同サイクルチェック（at:3 set & check）で a_d2 が更新されず y=0 になる"
+
+  - file: and_via_wire.sv
+    expected: PASS_KNOWN_LIMITATION
+    reason: >
+      中間ワイヤー経由の assign は正しいコードと機能的に同一のため PASS する。
+      deltasim がサブサイクル刺激に対応した場合も区別できないが、
+      現実には問題のない実装でもある。

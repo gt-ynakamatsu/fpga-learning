@@ -1,21 +1,25 @@
 # wrong_codes/manifest.yaml — Ch06 Lesson02 (2:1 MUX)
 # expected フィールド:
-#   FAIL                  : deltasim で FAIL することが確認済み
-#   PASS_KNOWN_LIMITATION : 整数サイクル制約により現在 PASS する既知の制約
-#                           deltasim がサブサイクル刺激に対応次第 FAIL に変更する
+#   FAIL                     : spec で確実に FAIL する
+#   PASS_KNOWN_LIMITATION     : deltasim サブサイクル対応後に FAIL になる予定
+#   RULE_VIOLATION_UNDETECTABLE: スタイル違反だが動作上は正しく、サブサイクル対応後も PASS のまま
+#   FAIL_DUE_TO_DELTASIM_BUG  : deltasim バグで現在 FAIL（バグ修正後は PASS になる予定）
 
 wrong_codes:
   - file: sel_xor_a.sv
     expected: FAIL
-    reason: "y = sel ^ a は sel=1,a=0,b=0（期待 y=0）と sel=1,a=1,b=1（期待 y=1）で誤った出力を返す"
+    reason: "y = sel ^ a は sel=1,a=0,b=0 と sel=1,a=1,b=1 で誤った出力を返す"
 
   - file: a_or_sel_and_b.sv
     expected: FAIL
-    reason: "y = a|(sel&b) は sel=1,a=1,b=0（期待 y=0）のとき誤って y=1 を返す"
+    reason: "y = a|(sel&b) は sel=1,a=1,b=0（期待 y=0）で誤って y=1 を返す"
 
   - file: latch.sv
     expected: FAIL
+    reason: "else ブランチなし → ラッチ生成。latch_detection ケースで FAIL する"
+
+  - file: mux_via_wire.sv
+    expected: PASS_KNOWN_LIMITATION
     reason: >
-      else ブランチがない（else if(a) のみ）ためラッチが生成される。
-      sel=1,b=1 の後で sel=0,a=0 にすると y が 1 のまま保持される。
-      latch_detection ケースで FAIL する。
+      always_comb で中間変数 y_tmp を経由するが、機能的には正しいコードと同一。
+      整数サイクル検査でも、サブサイクル対応後も PASS のまま（実装として問題ない）。

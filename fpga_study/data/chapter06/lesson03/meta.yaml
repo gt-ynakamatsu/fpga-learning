@@ -4,4 +4,3 @@ description: "always_ff を使ってDフリップフロップと同期リセッ�
 estimated_min: 15
 status: draft
 has_hdl_exercise: true
-has_exercise: true

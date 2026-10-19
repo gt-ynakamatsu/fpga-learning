@@ -4,4 +4,3 @@ description: "always_comb を使って if/else 文と case 文でMUXを記述し
 estimated_min: 15
 status: draft
 has_hdl_exercise: true
-has_exercise: true

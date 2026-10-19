@@ -69,9 +69,10 @@ title: "デジタルの世界と「ビット」"
 description: "..."
 estimated_min: 10             # 目安学習時間（分）
 status: draft                 # 下記参照
-has_puzzle: false             # 省略時 false（回路パズルがある場合 true）
-has_exercise: false           # 省略時 false（練習問題がある場合 true）
-has_hdl_exercise: false       # 省略時 false（HDL演習がある場合 true）
+has_puzzle: false             # 省略時 false（puzzle.yaml がある場合 true）
+has_exercise: false           # 省略時 false（exercise.yaml に fill_number/fill_text 等の通常問題がある場合 true）
+has_hdl_exercise: false       # 省略時 false（exercise.yaml の type: hdl の HDL演習がある場合 true）
+                              # ※ HDL演習のみのレッスンは has_exercise: false, has_hdl_exercise: true
 ```
 
 **statusフィールドの値（decisions 1）**:

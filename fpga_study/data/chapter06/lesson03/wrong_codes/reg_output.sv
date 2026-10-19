@@ -1,7 +1,12 @@
-// スタイル上の誤り: always_ff 内でブロッキング代入 = を使用（本来は <= を使う）
-// この単純な 1FF 構成では観測可能な動作が正しいコードと同一になる
-// ⚠️ 整数サイクル検査では PASS する（PASS_KNOWN_LIMITATION）
-// 理由: 単一 FF の場合、ブロッキング代入と非ブロッキング代入は同じ結果を生成する
+// FAIL_DUE_TO_DELTASIM_BUG:
+// always_ff 内でブロッキング代入 = を使用（本来は <= を使う）。
+// この実装の意図は正しい DFF と同等だが、deltasim バグ（クロック付きブロック内の
+// blocking assign が q を正しく更新しない）により現在 FAIL する。
+//
+// 【deltasim バグ報告中】仕様考案係が deltasim 開発チームに報告済み。
+// バグ修正後は PASS になる可能性があるため、その時点で manifest.yaml を更新すること。
+//
+// 参考: § 正しいスタイルは always_ff 内では <= を使う（コーディングルール）
 module d_ff(
     input  logic clk,
     input  logic rst,
@@ -9,7 +14,7 @@ module d_ff(
     output logic q
 );
     always_ff @(posedge clk) begin
-        if (rst) q = 1'b0;  // 誤り: <= を使うべき
-        else     q = d;      // 誤り: <= を使うべき
+        if (rst) q = 1'b0;  // バグ: <= を使うべきだが、= を使用
+        else     q = d;      // バグ: 同上
     end
 endmodule

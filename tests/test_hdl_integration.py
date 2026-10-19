@@ -227,13 +227,28 @@ class TestWrongCodesManifest:
         elif expected == "PASS_KNOWN_LIMITATION":
             assert actual_status == "PASS", (
                 f"[⚠️ 既知制約の変化を検出] {filename} が {actual_status} になりました。\n"
-                f"これは deltasim がサブサイクル刺激に対応したことを示している可能性があります。\n"
-                f"以下を実施してください:\n"
-                f"  1. manifest.yaml の expected を FAIL に変更する\n"
-                f"  2. FAIL を確認するアサートに切り替える\n"
-                f"  3. wrong_codes/README.md を更新する\n"
-                f"  4. implementation_plan.md の既知制約セクションを更新する\n"
+                f"deltasim がサブサイクル刺激に対応した可能性があります。\n"
+                f"対応: manifest.yaml の expected を FAIL に変更し、README.md を更新してください。\n"
                 f"ファイル: {wrong_sv}\n"
+                f"理由: {reason}"
+            )
+
+        elif expected == "RULE_VIOLATION_UNDETECTABLE":
+            # スタイル違反だが機能的に正しい。deltasim 改善後も PASS のまま。
+            assert actual_status == "PASS", (
+                f"[⚠️ RULE_VIOLATION_UNDETECTABLE が PASS でなくなりました] {filename}: {actual_status}\n"
+                f"これはスタイル違反のため機能的には正しいはずです。\n"
+                f"spec の変更や deltasim の挙動変化を確認してください（サブサイクル対応では壊れないはず）。\n"
+                f"理由: {reason}"
+            )
+
+        elif expected == "FAIL_DUE_TO_DELTASIM_BUG":
+            # deltasim バグにより現在 FAIL する。バグ修正後は PASS になる予定。
+            assert actual_status in ("FAIL", "ERROR"), (
+                f"[⚠️ FAIL_DUE_TO_DELTASIM_BUG が PASS になりました] {filename}: {actual_status}\n"
+                f"deltasim のバグが修正された可能性があります。\n"
+                f"対応: manifest.yaml のエントリを RULE_VIOLATION_UNDETECTABLE または\n"
+                f"PASS_KNOWN_LIMITATION に変更し、仕様考案係に確認してください。\n"
                 f"理由: {reason}"
             )
 

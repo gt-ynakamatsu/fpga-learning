@@ -1,8 +1,18 @@
-// PASS_KNOWN_LIMITATION: 組み合わせ論理で rst を処理し、FF で取り込む
-// 動作は正しいコード（always_ff 内で if(rst)）と整数サイクル境界では同一になる
-// 理由: d_comb = rst?0:d は組み合わせで計算され、その値を FF で取り込むため
-//       クロックエッジ境界での観測値が同じになる
-// ⚠️ deltasim の整数サイクル検査では PASS する（PASS_KNOWN_LIMITATION）
+// RULE_VIOLATION_UNDETECTABLE:
+// 組み合わせ論理で rst を処理し、結果を FF で取り込む書き方。
+//
+// 【なぜルール違反か】
+//   このコードは「always_ff @(posedge clk) の中で if (rst) を使う」という
+//   コーディングルール（decisions 4）に違反している。
+//
+// 【なぜ検出できないか】
+//   動作としては正しいコードと完全に等価であるため:
+//   - 整数サイクルの spec 検査: PASS（正常）
+//   - deltasim がサブサイクル刺激に対応後も: PASS のまま
+//     （d_comb は always_ff エッジの直前に確定しており、観測可能な差がない）
+//
+// 【検出方法】
+//   自動テストでは検出不可能。コードレビューで指摘する必要がある。
 module d_ff(
     input  logic clk,
     input  logic rst,
@@ -10,6 +20,6 @@ module d_ff(
     output logic q
 );
     logic d_comb;
-    assign d_comb = rst ? 1'b0 : d;  // 組み合わせで次の値を計算
-    always_ff @(posedge clk) q <= d_comb;  // FF で取り込む
+    assign d_comb = rst ? 1'b0 : d;  // ルール違反: always_ff 外で rst を処理
+    always_ff @(posedge clk) q <= d_comb;
 endmodule

@@ -14,26 +14,26 @@ cases:
       - at: 3
         set: {a: 0, b: 0}
     expected:
-      - at: 5
+      - at: 3
         check: {y: 0}
   - name: "01_gives_0"
     inputs:
       - at: 3
         set: {a: 0, b: 1}
     expected:
-      - at: 5
+      - at: 3
         check: {y: 0}
   - name: "10_gives_0"
     inputs:
       - at: 3
         set: {a: 1, b: 0}
     expected:
-      - at: 5
+      - at: 3
         check: {y: 0}
   - name: "11_gives_1"
     inputs:
       - at: 3
         set: {a: 1, b: 1}
     expected:
-      - at: 5
+      - at: 3
         check: {y: 1}

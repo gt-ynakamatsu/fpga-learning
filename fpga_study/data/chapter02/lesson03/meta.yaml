@@ -4,3 +4,4 @@ description: "学んだゲートをドラッグ＆ドロップで配置・配線
 estimated_min: 15
 status: draft
 has_puzzle: true
+has_exercise: true

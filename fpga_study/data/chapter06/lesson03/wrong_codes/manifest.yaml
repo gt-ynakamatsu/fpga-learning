@@ -1,42 +1,47 @@
 # wrong_codes/manifest.yaml — Ch06 Lesson03 (D-FF)
 # expected フィールド:
-#   FAIL                  : deltasim で FAIL することが確認済み
-#   PASS_KNOWN_LIMITATION : 整数サイクル制約により現在 PASS する既知の制約
-#                           deltasim がサブサイクル刺激に対応次第 FAIL に変更する
+#   FAIL                     : spec で確実に FAIL する
+#   PASS_KNOWN_LIMITATION     : deltasim サブサイクル対応後に FAIL になる予定
+#   RULE_VIOLATION_UNDETECTABLE: スタイル違反だが動作上は正しく、サブサイクル対応後も PASS のまま
+#   FAIL_DUE_TO_DELTASIM_BUG  : deltasim バグで現在 FAIL（バグ修正後は PASS になる予定）
 
 wrong_codes:
   - file: no_reset.sv
     expected: FAIL
-    reason: "rst チェックなし。rst_overrides_d / sync_reset_during_operation ケースで FAIL する"
+    reason: "rst チェックなし。rst_overrides_d・sync_reset_during_operation で FAIL する"
 
   - file: twostage.sv
     expected: FAIL
-    reason: "D→Q1→Q（2段パイプライン）。same_cycle_capture ケース（at:4 check q=1）で FAIL する"
+    reason: "D→Q1→Q の 2 段パイプライン。same_cycle_capture（at:4 check q=1）で FAIL する"
 
   - file: reg_output.sv
-    expected: FAIL
+    expected: FAIL_DUE_TO_DELTASIM_BUG
     reason: >
-      always_ff 内でブロッキング代入 = を使用。deltasim ではブロッキング代入が
-      always_ff 内で期待通りに動作しないため FAIL する。
+      always_ff 内でのブロッキング代入 = を使用。
+      deltasim バグ（クロック付きブロックの = が q を更新しない）により現在 FAIL する。
+      deltasim がバグを修正した時点では PASS になる可能性がある。
+      バグ修正後に PASS になったら、このエントリを RULE_VIOLATION_UNDETECTABLE または
+      PASS_KNOWN_LIMITATION に変更すること（仕様考案係と相談）。
 
   - file: combinational.sv
     expected: PASS_KNOWN_LIMITATION
     reason: >
-      assign q = rst?0:d は組み合わせ回路（FF なし）だが、
-      deltasim の整数サイクル検査ではクロックエッジ境界での観測値が同一になる。
+      assign q = rst?0:d は組み合わせ回路（FF なし）。
+      整数サイクル検査ではクロックエッジ境界で DFF と同一の観測値になる。
       deltasim がサブサイクル刺激に対応した時点で FAIL に変更すること。
 
   - file: async_reset.sv
     expected: PASS_KNOWN_LIMITATION
     reason: >
-      always_ff @(posedge clk or posedge rst) は非同期リセットだが、
-      rst の変化がクロックエッジと同時のため同期リセットと区別できない。
+      always_ff @(posedge clk or posedge rst) は非同期リセット。
+      rst の変化がクロックエッジと同時のため、整数サイクル検査では区別できない。
       deltasim がサブサイクル刺激に対応した時点で FAIL に変更すること。
 
   - file: registered_comb.sv
-    expected: PASS_KNOWN_LIMITATION
+    expected: RULE_VIOLATION_UNDETECTABLE
     reason: >
       assign d_comb = rst?0:d; always_ff @(posedge clk) q <= d_comb; は
-      正しいコードと整数サイクル境界での動作が同一になる。
-      組み合わせ論理で rst を処理してから FF で取り込む構成で、
-      クロックエッジ時点での d_comb 値が正しいコードと一致するため PASS する。
+      「always_ff 内で if(rst) を使う」というコーディングルールに違反しているが、
+      機能的には正しいコードと完全に等価である。
+      deltasim がサブサイクル刺激に対応した後も PASS のままであり、
+      自動テストでは検出できない（コードレビューで指摘する必要がある）。
