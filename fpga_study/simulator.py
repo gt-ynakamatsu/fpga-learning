@@ -94,9 +94,7 @@ from typing import Optional, Protocol, runtime_checkable
 
 SUPPORTED_SCHEMA_MAJOR = "2"
 
-# deltasim 最低バージョン要件
-# TODO: v0.2.0 タグが公開されたら DELTASIM_MIN_VERSION を "0.2.0" のままにし、
-#       _probe_offset_ns_support() フォールバックを削除する。
+# deltasim 最低バージョン要件（v0.2.0 以上が必須）
 DELTASIM_MIN_VERSION = "0.2.0"
 
 
@@ -113,45 +111,13 @@ def get_deltasim_version() -> Optional[str]:
 
 
 def _version_tuple(v: str) -> tuple:
-    """バージョン文字列を比較用タプルに変換"""
+    """バージョン文字列をセマンティック比較用タプルに変換"""
     try:
         return tuple(int(x) for x in v.split("."))
     except ValueError:
         return (0,)
 
 
-def _probe_offset_ns_support() -> bool:
-    """
-    §15 offset_ns サポートの機能プローブ。
-    v0.2.0 タグが未公開の間は、バージョン比較のフォールバックとして使用。
-    """
-    try:
-        with tempfile.TemporaryDirectory() as tmp:
-            sv = Path(tmp) / "probe.sv"
-            sv.write_text(
-                "module probe_dff(input logic clk, input logic d, output logic q);\n"
-                "    always_ff @(posedge clk) q <= d;\n"
-                "endmodule\n"
-            )
-            spec = Path(tmp) / "probe.yaml"
-            spec.write_text(
-                "version: 1\ntop: probe_dff\n"
-                "clock: {signal: clk, period_ns: 10}\nsim: {cycles: 5}\n"
-                "cases:\n  - name: probe\n    inputs:\n"
-                "      - {at: 2, offset_ns: 6, set: {d: 1}}\n"
-                "    expected:\n      - {at: 2, check: {q: 0}}\n"
-            )
-            json_out = Path(tmp) / "r.json"
-            subprocess.run(
-                ["deltasim", "test", str(sv), "--spec", str(spec), "--json", str(json_out)],
-                capture_output=True, text=True, timeout=10,
-            )
-            if json_out.exists():
-                data = json.loads(json_out.read_text())
-                return data.get("status") == "PASS"
-    except Exception:
-        pass
-    return False
 
 
 def check_deltasim_requirement(
@@ -161,42 +127,28 @@ def check_deltasim_requirement(
     deltasim が要件を満たすかを確認する。
     戻り値: (ok: bool, version: str|None, message: str)
 
-    確認の優先順位:
-    1. インストール済みかどうか
-    2. バージョン >= min_version かどうか
-    3. バージョンが古くても §15 (offset_ns) 機能プローブが通るか
-       （TODO: v0.2.0 タグ公開後はこのフォールバックを削除する）
+    `deltasim --version` からバージョンを取得し、セマンティックに比較する。
+    result JSON の `deltasim_version` フィールドも使って実行時に二重確認できる
+    （_parse_deltasim_result 内で自動確認）。
+    0.2.0 未満の場合はグレーディングを拒否し、統合テストは SKIP する。
     """
-    install_hint = (
-        "# v0.2.0 タグ公開まで:\n"
-        "pip install 'git+https://github.com/gt-ynakamatsu/deltasim.git@748164e'\n"
-        "# v0.2.0 タグ公開後:\n"
-        "pip install 'git+https://github.com/gt-ynakamatsu/deltasim.git@v0.2.0'"
-    )
+    install_hint = "pip install 'git+https://github.com/gt-ynakamatsu/deltasim.git@v0.2.0'"
 
     ver = get_deltasim_version()
     if ver is None:
         return (
             False, None,
-            f"deltasim がインストールされていません。\nインストール方法:\n{install_hint}",
+            f"deltasim がインストールされていません。\nインストール: {install_hint}",
         )
 
     if _version_tuple(ver) >= _version_tuple(min_version):
         return (True, ver, ver)
 
-    # バージョンが古い → §15 機能プローブで確認
-    if _probe_offset_ns_support():
-        return (
-            True, ver,
-            f"{ver} (§15 offset_ns 機能確認済み)",
-        )
-
     return (
         False, ver,
         f"deltasim {min_version} 以上が必要です（現在: {ver}）。\n"
-        f"アップグレード方法:\n{install_hint}",
+        f"アップグレード: {install_hint}",
     )
-"""対応するスキーマのメジャーバージョン。先頭の数字が変わったときだけ非互換扱い。"""
 
 
 # ── データクラス ────────────────────────────────────────────────────────
@@ -257,6 +209,7 @@ class SimulationResult:
     checks: list[CheckResult] = field(default_factory=list)
     errors: list[ErrorDetail] = field(default_factory=list)
     warnings: list[WarningDetail] = field(default_factory=list)
+    deltasim_version: Optional[str] = None       # result JSON の deltasim_version
     summary_elapsed_ms: Optional[float] = None   # summary.elapsed_ms（推奨）
     raw_output: str = ""
     user_message: str = ""
@@ -456,6 +409,9 @@ def _parse_deltasim_result(raw: str) -> SimulationResult:
             user_message=compat_warning,
         )
 
+    # result JSON の deltasim_version を取得
+    result_deltasim_version: Optional[str] = data.get("deltasim_version")
+
     status = data.get("status", "ERROR")
     success = status == "PASS"
 
@@ -470,7 +426,7 @@ def _parse_deltasim_result(raw: str) -> SimulationResult:
 
     errors: list[ErrorDetail] = [_parse_error(e) for e in data.get("errors", [])]
 
-    # §15.12: warnings は常に存在する（748164e 以降は常に空リストまたはリスト）
+    # §15.12: warnings は常に存在する（v0.2.0 以降は常に空リストまたはリスト）
     # 旧バージョン互換のため None または absent の場合も空リストとして扱う
     raw_warnings = data.get("warnings") or []
     warnings: list[WarningDetail] = [_parse_warning(w) for w in raw_warnings]
@@ -484,6 +440,7 @@ def _parse_deltasim_result(raw: str) -> SimulationResult:
         checks=checks,
         errors=errors,
         warnings=warnings,
+        deltasim_version=result_deltasim_version,
         summary_elapsed_ms=summary_elapsed_ms,
         raw_output=raw,
         user_message=user_message,

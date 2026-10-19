@@ -31,54 +31,34 @@ DELTASIM_AVAILABLE = shutil.which("deltasim") is not None
 # ── §15 (offset_ns) サポートチェック ─────────────────────────────────
 
 
-def _probe_offset_ns_support() -> bool:
-    """
-    deltasim が §15 offset_ns を正しく処理するかプローブする。
-    古い deltasim は offset_ns を無視して PASS を返す（誤検知の原因）。
-    → at:2 offset_ns:6 で D=1 を設定し、at:2 check で Q=0 が期待される。
-    Q=1 なら offset_ns は無視されている（§15 未対応）。
-    """
+def _get_installed_version():
     if not DELTASIM_AVAILABLE:
+        return None
+    try:
+        from fpga_study.simulator import get_deltasim_version
+        return get_deltasim_version()
+    except Exception:
+        return None
+
+def _is_v020_or_later() -> bool:
+    ver = _get_installed_version()
+    if not ver:
         return False
-    with tempfile.TemporaryDirectory() as tmp:
-        sv = Path(tmp) / "probe.sv"
-        sv.write_text(
-            "module probe_dff(input logic clk, input logic d, output logic q);\n"
-            "    always_ff @(posedge clk) q <= d;\n"
-            "endmodule\n"
-        )
-        spec = Path(tmp) / "probe.yaml"
-        spec.write_text(
-            "version: 1\ntop: probe_dff\n"
-            "clock: {signal: clk, period_ns: 10}\nsim: {cycles: 5}\n"
-            "cases:\n"
-            "  - name: offset_probe\n"
-            "    inputs:\n"
-            "      - {at: 2, offset_ns: 6, set: {d: 1}}\n"
-            "    expected:\n"
-            "      - {at: 2, check: {q: 0}}\n"  # §15 対応なら q=0（edgeではまだd=0）
-        )
-        json_out = Path(tmp) / "r.json"
-        result = subprocess.run(
-            ["deltasim", "test", str(sv), "--spec", str(spec), "--json", str(json_out)],
-            capture_output=True, text=True, timeout=10,
-        )
-        if not json_out.exists():
-            return False
-        data = json.loads(json_out.read_text())
-        # PASS = offset_ns が正しく動作している（D=1 設定はエッジ後なので q=0）
-        return data.get("status") == "PASS"
+    try:
+        return tuple(int(x) for x in ver.split(".")) >= (0, 2, 0)
+    except ValueError:
+        return False
 
 
-OFFSET_NS_SUPPORTED = _probe_offset_ns_support()
+DELTASIM_V020_OR_LATER = _is_v020_or_later()
 
 skip_if_no_deltasim = pytest.mark.skipif(
     not DELTASIM_AVAILABLE,
     reason="deltasim がインストールされていません（pip install deltasim）",
 )
 
-require_offset_ns = pytest.mark.skipif(
-    not OFFSET_NS_SUPPORTED,
+require_v020 = pytest.mark.skipif(
+    not DELTASIM_V020_OR_LATER,
     reason=(
         "⚠️ この deltasim は §15 (offset_ns) に対応していません。"
         " b482527 以降をインストールしてください: "
@@ -219,16 +199,16 @@ class TestChapter07Answers:
 
 
 @skip_if_no_deltasim
-class TestOffsetNsSupport:
+class TestDeltasimVersionRequirement:
     """§15 サポートの確認（このテストが FAIL なら古い deltasim を使用中）"""
 
-    def test_offset_ns_is_supported(self):
+    def test_v020_or_later_is_installed(self):
         """
         offset_ns が正しく動作することを確認する。
         FAIL した場合: deltasim b482527 以降をインストールしてください。
         pip install git+https://github.com/gt-ynakamatsu/deltasim.git@b482527
         """
-        assert OFFSET_NS_SUPPORTED, (
+        assert DELTASIM_V020_OR_LATER, (
             "⚠️ §15 (offset_ns) が未対応の deltasim が使われています。\n"
             "b482527 以降をインストールしてください:\n"
             "pip install 'git+https://github.com/gt-ynakamatsu/deltasim.git@b482527'\n"
@@ -286,7 +266,7 @@ class TestWrongCodesManifest:
         reason = entry.get("reason", "")
 
         # §15 が必要なファイルは offset_ns 非対応なら SKIP
-        if filename in _OFFSET_NS_REQUIRED_FILES and not OFFSET_NS_SUPPORTED:
+        if filename in _OFFSET_NS_REQUIRED_FILES and not DELTASIM_V020_OR_LATER:
             pytest.skip(
                 f"{filename} は §15 (offset_ns) を使って検出するため、"
                 f"古い deltasim では silent PASS になる可能性があります。"
@@ -349,10 +329,10 @@ class TestSpecZeroWarnings:
         answer = DATA_ROOT / chapter / lesson / "answer.sv"
         result = run_deltasim_test(answer, spec)
 
-        # warnings キーが存在すること（748164e 以降は常に present）
+        # warnings キーが存在すること（v0.2.0 以降は常に present）
         assert "warnings" in result, (
             f"[warnings キーが存在しません] {chapter}/{lesson}\n"
-            f"deltasim 748164e 以降を使用しているか確認してください。"
+            f"deltasim v0.2.0 以降を使用しているか確認してください。"
         )
 
         warnings = result.get("warnings") or []

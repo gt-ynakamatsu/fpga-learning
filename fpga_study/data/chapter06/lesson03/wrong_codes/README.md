@@ -25,4 +25,4 @@
 
 - `combinational.sv` と `async_reset.sv` は §15 offset_ns ケースで FAIL する
 - `registered_comb.sv` は §15 offset_ns 後もPASS（動作が正しいコードと等価）
-- deltasim 748164e 以降が必要（§15 サポート）
+- deltasim v0.2.0 以降が必要（§15 サポート）

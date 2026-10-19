@@ -20,4 +20,4 @@
 ## §15 offset_ns について
 
 `async_reset.sv` は §15 の `sync_reset_waits_for_edge` ケースで FAIL する。
-deltasim 748164e 以降が必要。
+deltasim v0.2.0 以降が必要。

@@ -206,8 +206,7 @@ tests/              # ユニットテスト・APIテスト
 # v0.2.0 タグ公開後（推奨）:
 pip install 'git+https://github.com/gt-ynakamatsu/deltasim.git@v0.2.0'
 
-# TODO: v0.2.0 タグが公開されるまでは 748164e コミットを使用:
-pip install 'git+https://github.com/gt-ynakamatsu/deltasim.git@748164e'
+pip install 'git+https://github.com/gt-ynakamatsu/deltasim.git@v0.2.0'
 ```
 
 deltasim がインストールされていない場合、第1〜5章の回路パズルは引き続き利用できます。
