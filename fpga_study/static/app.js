@@ -301,7 +301,7 @@ async function buildHdlSection(exercise, chapterId, lessonId) {
   try {
     const s = await apiFetch('/api/deltasim/status');
     simOk = s.available;
-    simMsg = s.version_message || '';
+    simMsg = s.message || s.version_message || '';
   } catch (_) {}
   if (!simOk) {
     section.append(h('div', { class: 'hdl-version-warn' }, `⚠️ ${simMsg || 'deltasim が必要です'}`));
