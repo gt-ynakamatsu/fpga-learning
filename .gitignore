@@ -29,3 +29,7 @@ Thumbs.db
 
 # uploads（仕様書は含めない）
 uploads/
+
+# deltasim gen が生成するテスト用ファイル（作業残り）
+*_spec.yaml
+*_tb.sv
