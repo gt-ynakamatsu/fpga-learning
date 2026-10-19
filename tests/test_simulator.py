@@ -473,6 +473,62 @@ class TestParserSchemaVersion:
 # ── 堅牢性テスト ──────────────────────────────────────────────────────
 
 
+class TestLoopAndInternalErrors:
+    """E_DELTA_LIMIT / E_LOOP_LIMIT / E_INTERNAL のユニットテスト"""
+
+    def _make_result(self, error_code: str) -> str:
+        import json
+        return json.dumps({
+            "schema_version": "2",
+            "deltasim_version": "0.2.1",
+            "status": "ERROR",
+            "cases": [],
+            "checks": [],
+            "errors": [{"file": "", "line": 0, "column": 0,
+                        "severity": "error", "message": f"{error_code}: 詳細", "code": error_code}],
+            "warnings": [],
+        })
+
+    def test_e_delta_limit_gives_loop_message(self):
+        result = _parse_deltasim_result(self._make_result("E_DELTA_LIMIT"))
+        assert "回路が終わらない" in result.user_message, result.user_message
+        assert result.status == "ERROR"
+
+    def test_e_loop_limit_gives_loop_message(self):
+        result = _parse_deltasim_result(self._make_result("E_LOOP_LIMIT"))
+        assert "回路が終わらない" in result.user_message, result.user_message
+
+    def test_e_internal_gives_internal_message(self):
+        result = _parse_deltasim_result(self._make_result("E_INTERNAL"))
+        assert "採点ツールの不具合" in result.user_message, result.user_message
+
+    def test_empty_json_gives_internal_message(self):
+        """JSON が空のとき = E_INTERNAL 扱い（想定外の異常終了）"""
+        result = _parse_deltasim_result("", "")
+        assert "採点ツールの不具合" in result.user_message, result.user_message
+        assert result.status == "ERROR"
+
+    def test_case_level_e_delta_limit_gives_loop_message(self):
+        """cases[].errors に E_DELTA_LIMIT がある場合も検出"""
+        import json
+        data = {
+            "schema_version": "2",
+            "deltasim_version": "0.2.1",
+            "status": "ERROR",
+            "cases": [{"name": "c1", "status": "ERROR", "seed": 0,
+                       "elapsed_ms": 0.1, "checks": [], "log": [],
+                       "errors": [{"file": "", "line": 0, "column": 0,
+                                   "severity": "error", "message": "E_DELTA_LIMIT: ...",
+                                   "code": "E_DELTA_LIMIT"}],
+                       "warnings": []}],
+            "checks": [],
+            "errors": [],
+            "warnings": [],
+        }
+        result = _parse_deltasim_result(json.dumps(data))
+        assert "回路が終わらない" in result.user_message, result.user_message
+
+
 class TestParserWarnings:
     """warnings フィールドのパース（§15.12 W_UNKNOWN_KEY など）"""
 

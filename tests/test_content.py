@@ -293,6 +293,31 @@ class TestContentLoader:
                         )
                     all_questions[q] = lesson_id
 
+    def test_spec_cases_have_japanese_descriptions(self, data_root):
+        """HDL演習のある全レッスンで spec.yaml の全ケースに日本語説明があること"""
+        import yaml
+        for chapter_dir in sorted(data_root.iterdir()):
+            if not chapter_dir.is_dir():
+                continue
+            for lesson_dir in sorted(chapter_dir.iterdir()):
+                if not lesson_dir.is_dir():
+                    continue
+                spec_path = lesson_dir / "spec.yaml"
+                ex_path = lesson_dir / "exercise.yaml"
+                if not (spec_path.exists() and ex_path.exists()):
+                    continue
+                spec = yaml.safe_load(spec_path.read_text())
+                ex = yaml.safe_load(ex_path.read_text())
+                if ex.get("type") != "hdl":
+                    continue
+                descriptions = ex.get("case_descriptions", {})
+                for case in spec.get("cases", []):
+                    name = case.get("name", "")
+                    assert name in descriptions, (
+                        f"{lesson_dir}: spec ケース '{name}' の日本語説明が "
+                        f"exercise.yaml の case_descriptions にありません"
+                    )
+
     def test_quiz_has_no_status_field(self, data_root):
         """quiz.yaml には status フィールドがない（decisions 1）"""
         import yaml

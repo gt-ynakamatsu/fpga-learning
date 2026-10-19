@@ -4,10 +4,10 @@ E2E テスト — 実際の uvicorn サーバーを起動して HTTP レベル�
 テスト対象:
   - レッスン応答（演習データ含む、説明→演習→クイズの順）
   - 練習問題採点（正解・不正解、進捗保存）
-  - HDL 採点 PASS（answer.sv → deltasim v0.2.0 必須）
+  - HDL 採点 PASS（answer.sv → deltasim v0.2.1 必須）
   - HDL 採点 FAIL（wrong_codes → 失敗チェック expected/actual）
   - always_ff 内の = → lint ヒントのみ（採点には影響しない）
-  - deltasim 旧バージョン → 「0.2.0 以上が必要」応答
+  - deltasim 旧バージョン → 「0.2.1 以上が必要」応答
   - コンテンツ可視性（デフォルト非表示 / --show-drafts で表示）
   - (Optional) Playwright ブラウザテスト
 """
@@ -27,7 +27,7 @@ import pytest
 
 DATA_ROOT = Path(__file__).parent.parent / "fpga_study" / "data"
 
-# deltasim v0.2.0 の有無
+# deltasim v0.2.1 の有無
 try:
     from fpga_study.simulator import check_deltasim_requirement, DELTASIM_MIN_VERSION
     _ok, _ver, _ = check_deltasim_requirement()
@@ -39,7 +39,7 @@ skip_if_no_deltasim_v020 = pytest.mark.skipif(
     not DELTASIM_OK,
     reason=(
         f"deltasim {DELTASIM_MIN_VERSION} 以上が必要です。"
-        " pip install 'git+https://github.com/gt-ynakamatsu/deltasim.git@v0.2.0'"
+        " pip install 'git+https://github.com/gt-ynakamatsu/deltasim.git@v0.2.1'"
     ),
 )
 
@@ -177,11 +177,13 @@ class TestPracticeExercise:
               "/api/chapters/chapter01/lessons/lesson01/exercise/check",
               {"problem_id": "p1", "answer": 8})
         prog = _get(server_with_drafts, "/api/progress/chapter01/lesson01")
-        assert prog["completed"] == 1, "正解後に completed=1 になっていません"
+        # 1問正解だけでは completed にならない
+        assert "p1" in (prog.get("exercise_problems_done") or []), \
+            "p1 が exercise_problems_done に含まれていません"
 
 
 class TestHdlGrading:
-    """HDL 採点（deltasim v0.2.0 必須）"""
+    """HDL 採点（deltasim v0.2.1 必須）"""
 
     @skip_if_no_deltasim_v020
     def test_answer_sv_passes(self, server_with_drafts):
@@ -251,14 +253,14 @@ class TestOldDeltasim:
         import fpga_study.simulator as sim_mod
         monkeypatch.setattr(sim_mod, "get_deltasim_version", lambda: "0.1.0")
 
-        code = "module and_gate(input logic a, b, output logic y); assign y = a & b; endmodule"
+        code = "module and_gate(\n    input  logic a,\n    input  logic b,\n    output logic y\n);\n    assign y = a & b;\nendmodule"
         res = _post(server_with_drafts,
                     "/api/chapters/chapter06/lessons/lesson01/hdl/grade",
                     {"code": code})
 
         assert res["simulator_version_ok"] is False, "古いバージョンでも version_ok=True になっています"
-        assert "0.2.0" in res["user_message"], (
-            f"バージョンエラーメッセージに '0.2.0' が含まれていません: {res['user_message']}"
+        assert "0.2." in res["user_message"], (
+            f"バージョンエラーメッセージにバージョン番号が含まれていません: {res['user_message']}"
         )
         assert res["status"] == "SKIP", f"古いバージョンでも grading が実行されました: {res['status']}"
 

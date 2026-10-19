@@ -95,7 +95,8 @@ class TestQuizAPI:
         )
         assert res.status_code == 200
         data = res.json()
-        assert data["completed"] == 1
+        # クイズ満点だが練習問題が未完了なので completed=0
+        assert data["completed"] == 0
         assert data["quiz_score"] == 4
 
 
@@ -237,8 +238,9 @@ class TestProgressAPI:
         res = client.get("/api/progress")
         assert res.status_code == 200
         data = res.json()
-        completed = [p for p in data["progress"] if p["completed"]]
-        assert len(completed) == 1
+        # クイズ満点のみでは completed にならない（練習問題が未完了）
+        quiz_scored = [p for p in data["progress"] if p["quiz_score"] > 0]
+        assert len(quiz_scored) == 1
 
     def test_homepage_returns_html(self, client):  # noqa: E301
         res = client.get("/")

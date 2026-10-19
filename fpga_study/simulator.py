@@ -94,8 +94,8 @@ from typing import Optional, Protocol, runtime_checkable
 
 SUPPORTED_SCHEMA_MAJOR = "2"
 
-# deltasim 最低バージョン要件（v0.2.0 以上が必須）
-DELTASIM_MIN_VERSION = "0.2.0"
+# deltasim 最低バージョン要件（v0.2.1 以上が必須）
+DELTASIM_MIN_VERSION = "0.2.1"
 
 
 def get_deltasim_version() -> Optional[str]:
@@ -132,7 +132,7 @@ def check_deltasim_requirement(
     （_parse_deltasim_result 内で自動確認）。
     0.2.0 未満の場合はグレーディングを拒否し、統合テストは SKIP する。
     """
-    install_hint = "pip install 'git+https://github.com/gt-ynakamatsu/deltasim.git@v0.2.0'"
+    install_hint = "pip install 'git+https://github.com/gt-ynakamatsu/deltasim.git@v0.2.1'"
 
     ver = get_deltasim_version()
     if ver is None:
@@ -184,6 +184,7 @@ class CaseResult:
     checks: list[CheckResult] = field(default_factory=list)
     log: list[str] = field(default_factory=list)
     message: Optional[str] = None
+    case_errors: list["ErrorDetail"] = field(default_factory=list)  # cases[].errors (v0.2.1+)
 
 
 @dataclass
@@ -380,25 +381,15 @@ def _parse_deltasim_result(raw: str, stderr: str = "") -> SimulationResult:
     ⚠️ フォーマット変更時はここだけ修正すること。
     """
     if not raw.strip():
-        # stderr から組み合わせループや無限ループの兆候を確認
-        loop_keywords = ["combinational loop", "exceeded", "infinite loop", "SimError", "RecursionError"]
-        loop_detected = any(kw.lower() in stderr.lower() for kw in loop_keywords)
-        if loop_detected:
-            user_msg = (
-                "⚠️ 回路が終わらない書き方（組み合わせのループや無限ループ）の可能性があります。\n"
-                "コードを見直してください。\n"
-                "（例：`assign y = ~y;` のような自己参照は動きません）"
-            )
-        else:
-            user_msg = (
-                "❌ シミュレーション結果が取得できませんでした。\n"
-                "コードに組み合わせのループや無限ループがないか確認してください。"
-            )
+        # JSON が出なかった = 想定外の異常終了 (E_INTERNAL 扱い)
         return SimulationResult(
             success=False,
             status="ERROR",
             raw_output=stderr or raw,
-            user_message=user_msg,
+            user_message=(
+                "⚠️ 採点ツールの不具合の可能性があります。\n"
+                "再度お試しください。繰り返し発生する場合は担当者にご報告ください。"
+            ),
         )
 
     try:
@@ -438,7 +429,7 @@ def _parse_deltasim_result(raw: str, stderr: str = "") -> SimulationResult:
 
     errors: list[ErrorDetail] = [_parse_error(e) for e in data.get("errors", [])]
 
-    # §15.12: warnings は常に存在する（v0.2.0 以降は常に空リストまたはリスト）
+    # §15.12: warnings は常に存在する（v0.2.1 以降は常に空リストまたはリスト）
     # 旧バージョン互換のため None または absent の場合も空リストとして扱う
     raw_warnings = data.get("warnings") or []
     warnings: list[WarningDetail] = [_parse_warning(w) for w in raw_warnings]
@@ -459,7 +450,7 @@ def _parse_deltasim_result(raw: str, stderr: str = "") -> SimulationResult:
     )
 
 
-def _parse_case(c: dict) -> CaseResult:
+def _parse_case(c: dict) -> "CaseResult":
     return CaseResult(
         name=c.get("name", ""),
         status=c.get("status", "ERROR"),
@@ -468,6 +459,7 @@ def _parse_case(c: dict) -> CaseResult:
         checks=[_parse_check(ch) for ch in c.get("checks", [])],
         log=list(c.get("log", [])),
         message=c.get("message"),
+        case_errors=[_parse_error(e) for e in c.get("errors", [])],  # v0.2.1+
     )
 
 
@@ -517,6 +509,36 @@ def _check_schema_compat(schema_ver: str) -> Optional[str]:
     return None
 
 
+_LOOP_CODES = {"E_DELTA_LIMIT", "E_LOOP_LIMIT"}
+_INTERNAL_CODES = {"E_INTERNAL"}
+
+
+def _classify_errors(
+    errors: list[ErrorDetail],
+    cases: list["CaseResult"],
+) -> Optional[str]:
+    """
+    errors[] と cases[].errors の code を見て初心者向けメッセージを返す。
+    分類できなければ None。
+    """
+    all_codes = {e.code for e in errors}
+    for c in cases:
+        all_codes.update(e.code for e in getattr(c, "case_errors", []))
+
+    if all_codes & _LOOP_CODES:
+        return (
+            "⚠️ 回路が終わらない書き方（組み合わせのループや無限ループ）の可能性があります。\n"
+            "コードを見直してください。\n"
+            "（例：`assign y = ~y;` のような自己参照は動きません）"
+        )
+    if all_codes & _INTERNAL_CODES:
+        return (
+            "⚠️ 採点ツールの不具合の可能性があります。\n"
+            "再度お試しください。繰り返し発生する場合は担当者にご報告ください。"
+        )
+    return None
+
+
 def _build_user_message(
     success: bool,
     status: str,
@@ -527,6 +549,11 @@ def _build_user_message(
 ) -> str:
     if status == "SKIP":
         return "⏭️ テストはスキップされました。"
+
+    # エラーコードによる分類（keywords ではなく code で判定）
+    loop_or_internal = _classify_errors(errors, cases)
+    if loop_or_internal:
+        return loop_or_internal
 
     # §15.12: W_UNKNOWN_KEY などのワーニングを表示（非致命的）
     warning_lines: list[str] = []

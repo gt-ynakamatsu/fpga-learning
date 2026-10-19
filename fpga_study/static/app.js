@@ -365,20 +365,24 @@ function _renderHdlResults(container, res) {
     cEl.append(h('div', { class: 'hdl-case-header' },
       h('span', { class: cls }, icon), h('span', {}, ` ${caseName} — ${c.status}`)));
     for (const ck of (c.failed_checks || [])) {
-      const loc = ck.location || `サイクル ${ck.cycle}`;
+      const offset = ck.offset_ns || 0;
+      const loc = ck.location || (offset ? `${ck.cycle}サイクル目のクロックの立ち上がりから${offset}ns後` : `${ck.cycle}サイクル目`);
       cEl.append(h('div', { class: 'hdl-check-detail' },
         `  ${ck.signal}（${loc}）: 期待=${ck.expected} / 実際=${ck.actual}`));
     }
     container.append(cEl);
   }
-  if (res.errors?.length) {
+  if (res.errors?.length || res.raw_detail) {
     const eb = h('div', { class: 'hdl-errors' });
     const details = document.createElement('details');
-    details.append(Object.assign(document.createElement('summary'), { textContent: '❌ エラー詳細（クリックで展開）' }));
-    for (const e of res.errors) {
-      const msg = e.message.replace(/\/tmp\/[^/]+\//g, '');  // 一時パス除去
+    details.append(Object.assign(document.createElement('summary'), { textContent: '詳細（クリックで展開）' }));
+    for (const e of (res.errors || [])) {
+      const msg = e.message.replace(/\/tmp\/[^/]+\//g, '');
       details.append(h('div', { class: 'hdl-error-item' },
         `[${e.severity}]${e.line ? ' 行' + e.line + ':' : ''} ${msg}`));
+    }
+    if (res.raw_detail) {
+      details.append(h('pre', { class: 'hdl-error-item', style: 'white-space:pre-wrap;font-size:.8rem' }, res.raw_detail));
     }
     eb.append(details);
     container.append(eb);

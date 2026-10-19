@@ -10,7 +10,6 @@ from typing import Optional
 
 
 def _db_path() -> Path:
-    """進捗データの保存先 (ユーザーホーム配下)"""
     base = Path.home() / ".fpga_study"
     base.mkdir(parents=True, exist_ok=True)
     return base / "progress.db"
@@ -36,6 +35,8 @@ def init_db(db_path: Optional[Path] = None) -> None:
                 quiz_score INTEGER NOT NULL DEFAULT 0,
                 quiz_total INTEGER NOT NULL DEFAULT 0,
                 puzzle_completed INTEGER NOT NULL DEFAULT 0,
+                exercise_problems_done TEXT NOT NULL DEFAULT '[]',
+                hdl_completed INTEGER NOT NULL DEFAULT 0,
                 completed_at TEXT,
                 updated_at TEXT NOT NULL
             )
@@ -47,11 +48,19 @@ def init_db(db_path: Optional[Path] = None) -> None:
                 earned_at  TEXT NOT NULL
             )
         """)
+        # 既存DBにカラムを追加（マイグレーション）
+        for col, ddl in [
+            ("exercise_problems_done", "TEXT NOT NULL DEFAULT '[]'"),
+            ("hdl_completed", "INTEGER NOT NULL DEFAULT 0"),
+        ]:
+            try:
+                conn.execute(f"ALTER TABLE lesson_progress ADD COLUMN {col} {ddl}")
+            except sqlite3.OperationalError:
+                pass  # 既に存在する
     conn.close()
 
 
 def get_all_progress(db_path: Optional[Path] = None) -> list[dict]:
-    """全レッスンの進捗を返す"""
     conn = _get_conn(db_path)
     try:
         rows = conn.execute("SELECT * FROM lesson_progress").fetchall()
@@ -63,7 +72,6 @@ def get_all_progress(db_path: Optional[Path] = None) -> list[dict]:
 def get_lesson_progress(
     chapter_id: str, lesson_id: str, db_path: Optional[Path] = None
 ) -> dict:
-    """特定レッスンの進捗を返す。未記録なら初期値を返す"""
     conn = _get_conn(db_path)
     key = f"{chapter_id}/{lesson_id}"
     try:
@@ -71,7 +79,9 @@ def get_lesson_progress(
             "SELECT * FROM lesson_progress WHERE lesson_key = ?", (key,)
         ).fetchone()
         if row:
-            return dict(row)
+            d = dict(row)
+            d["exercise_problems_done"] = json.loads(d.get("exercise_problems_done") or "[]")
+            return d
         return {
             "lesson_key": key,
             "chapter_id": chapter_id,
@@ -80,6 +90,8 @@ def get_lesson_progress(
             "quiz_score": 0,
             "quiz_total": 0,
             "puzzle_completed": 0,
+            "exercise_problems_done": [],
+            "hdl_completed": 0,
             "completed_at": None,
             "updated_at": None,
         }
@@ -87,61 +99,160 @@ def get_lesson_progress(
         conn.close()
 
 
-def _is_lesson_fully_complete(conn, chapter_id: str, lesson_id: str) -> bool:
-    """練習問題＋クイズ（＋HDL演習があれば）の全合格を確認する"""
-    key = f"{chapter_id}/{lesson_id}"
+# ── 完了判定 ───────────────────────────────────────────────────────
+
+def _check_completed(
+    conn: sqlite3.Connection,
+    key: str,
+    all_problem_ids: list[str],
+    has_hdl: bool,
+    quiz_total: int,
+) -> bool:
+    """
+    完了条件:
+    1. quiz_total > 0 のとき: クイズが全問正解
+    2. all_problem_ids がある場合: 練習問題が全問合格
+    3. has_hdl=True のとき: HDL演習が PASS
+    """
     row = conn.execute(
-        "SELECT * FROM lesson_progress WHERE lesson_key = ?", (key,)
+        "SELECT * FROM lesson_progress WHERE lesson_key=?", (key,)
     ).fetchone()
     if not row:
         return False
     d = dict(row)
-    # クイズが満点のこと
-    if d["quiz_total"] > 0 and d["quiz_score"] < d["quiz_total"]:
+
+    if quiz_total > 0 and d["quiz_score"] < quiz_total:
         return False
+
+    if all_problem_ids:
+        done = set(json.loads(d.get("exercise_problems_done") or "[]"))
+        if not all(pid in done for pid in all_problem_ids):
+            return False
+
+    if has_hdl and not d.get("hdl_completed", 0):
+        return False
+
     return True
 
+
+def _apply_completed(conn: sqlite3.Connection, key: str) -> None:
+    now = datetime.now(timezone.utc).isoformat()
+    with conn:
+        conn.execute(
+            """UPDATE lesson_progress
+               SET completed=1, completed_at=COALESCE(completed_at,?), updated_at=?
+               WHERE lesson_key=?""",
+            (now, now, key),
+        )
+
+
+def _ensure_row(
+    conn: sqlite3.Connection, key: str, chapter_id: str, lesson_id: str, now: str
+) -> None:
+    existing = conn.execute(
+        "SELECT lesson_key FROM lesson_progress WHERE lesson_key=?", (key,)
+    ).fetchone()
+    if not existing:
+        with conn:
+            conn.execute(
+                """INSERT INTO lesson_progress
+                   (lesson_key, chapter_id, lesson_id, completed,
+                    quiz_score, quiz_total, puzzle_completed,
+                    exercise_problems_done, hdl_completed, completed_at, updated_at)
+                   VALUES (?, ?, ?, 0, 0, 0, 0, '[]', 0, NULL, ?)""",
+                (key, chapter_id, lesson_id, now),
+            )
+
+
+# ── 各採点結果の保存 ───────────────────────────────────────────────
 
 def save_quiz_result(
     chapter_id: str,
     lesson_id: str,
     score: int,
     total: int,
+    all_problem_ids: list[str] = (),
+    has_hdl: bool = False,
     db_path: Optional[Path] = None,
 ) -> dict:
-    """クイズ結果を保存し、全問正解かつ練習問題完了ならcompletedにする"""
+    """クイズ結果を保存し、完了条件を再評価する"""
     conn = _get_conn(db_path)
     key = f"{chapter_id}/{lesson_id}"
     now = datetime.now(timezone.utc).isoformat()
-    completed = 1 if score == total else 0
-    completed_at = now if completed else None
-
     try:
+        _ensure_row(conn, key, chapter_id, lesson_id, now)
         existing = conn.execute(
-            "SELECT * FROM lesson_progress WHERE lesson_key = ?", (key,)
+            "SELECT quiz_score FROM lesson_progress WHERE lesson_key=?", (key,)
         ).fetchone()
-
-        with conn:
-            if existing:
-                # 既存スコアより良い場合のみ更新
-                if score > existing["quiz_score"]:
-                    conn.execute(
-                        """UPDATE lesson_progress
-                           SET quiz_score=?, quiz_total=?, completed=?,
-                               completed_at=COALESCE(completed_at, ?), updated_at=?
-                           WHERE lesson_key=?""",
-                        (score, total, max(completed, existing["completed"]),
-                         completed_at, now, key),
-                    )
-            else:
+        # スコアが改善したときだけ更新
+        if existing is None or score > existing["quiz_score"]:
+            with conn:
                 conn.execute(
-                    """INSERT INTO lesson_progress
-                       (lesson_key, chapter_id, lesson_id, completed,
-                        quiz_score, quiz_total, puzzle_completed, completed_at, updated_at)
-                       VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)""",
-                    (key, chapter_id, lesson_id, completed,
-                     score, total, completed_at, now),
+                    "UPDATE lesson_progress SET quiz_score=?, quiz_total=?, updated_at=? WHERE lesson_key=?",
+                    (score, total, now, key),
                 )
+        if _check_completed(conn, key, list(all_problem_ids), has_hdl, total):
+            _apply_completed(conn, key)
+        _check_and_award_badges(conn, db_path)
+        return get_lesson_progress(chapter_id, lesson_id, db_path)
+    finally:
+        conn.close()
+
+
+def save_practice_problem_result(
+    chapter_id: str,
+    lesson_id: str,
+    problem_id: str,
+    all_problem_ids: list[str],
+    has_hdl: bool = False,
+    quiz_total: int = 0,
+    db_path: Optional[Path] = None,
+) -> dict:
+    """練習問題の1問の合格を記録し、完了条件を再評価する"""
+    conn = _get_conn(db_path)
+    key = f"{chapter_id}/{lesson_id}"
+    now = datetime.now(timezone.utc).isoformat()
+    try:
+        _ensure_row(conn, key, chapter_id, lesson_id, now)
+        row = conn.execute(
+            "SELECT exercise_problems_done FROM lesson_progress WHERE lesson_key=?", (key,)
+        ).fetchone()
+        done = json.loads(row["exercise_problems_done"] or "[]")
+        if problem_id not in done:
+            done.append(problem_id)
+        with conn:
+            conn.execute(
+                "UPDATE lesson_progress SET exercise_problems_done=?, updated_at=? WHERE lesson_key=?",
+                (json.dumps(done), now, key),
+            )
+        if _check_completed(conn, key, list(all_problem_ids), has_hdl, quiz_total):
+            _apply_completed(conn, key)
+        _check_and_award_badges(conn, db_path)
+        return get_lesson_progress(chapter_id, lesson_id, db_path)
+    finally:
+        conn.close()
+
+
+def save_hdl_result(
+    chapter_id: str,
+    lesson_id: str,
+    all_problem_ids: list[str] = (),
+    quiz_total: int = 0,
+    db_path: Optional[Path] = None,
+) -> dict:
+    """HDL演習の合格を記録し、完了条件を再評価する"""
+    conn = _get_conn(db_path)
+    key = f"{chapter_id}/{lesson_id}"
+    now = datetime.now(timezone.utc).isoformat()
+    try:
+        _ensure_row(conn, key, chapter_id, lesson_id, now)
+        with conn:
+            conn.execute(
+                "UPDATE lesson_progress SET hdl_completed=1, updated_at=? WHERE lesson_key=?",
+                (now, key),
+            )
+        if _check_completed(conn, key, list(all_problem_ids), True, quiz_total):
+            _apply_completed(conn, key)
         _check_and_award_badges(conn, db_path)
         return get_lesson_progress(chapter_id, lesson_id, db_path)
     finally:
@@ -154,81 +265,19 @@ def save_puzzle_result(
     passed: bool,
     db_path: Optional[Path] = None,
 ) -> dict:
-    """パズル完了状態を保存する"""
     conn = _get_conn(db_path)
     key = f"{chapter_id}/{lesson_id}"
     now = datetime.now(timezone.utc).isoformat()
-
     try:
-        existing = conn.execute(
-            "SELECT * FROM lesson_progress WHERE lesson_key = ?", (key,)
-        ).fetchone()
-
-        puzzle_completed = 1 if passed else 0
-        with conn:
-            if existing:
-                if passed:
-                    conn.execute(
-                        """UPDATE lesson_progress
-                           SET puzzle_completed=1, completed=1,
-                               completed_at=COALESCE(completed_at, ?), updated_at=?
-                           WHERE lesson_key=?""",
-                        (now, now, key),
-                    )
-            else:
-                completed = 1 if passed else 0
+        _ensure_row(conn, key, chapter_id, lesson_id, now)
+        if passed:
+            with conn:
                 conn.execute(
-                    """INSERT INTO lesson_progress
-                       (lesson_key, chapter_id, lesson_id, completed,
-                        quiz_score, quiz_total, puzzle_completed, completed_at, updated_at)
-                       VALUES (?, ?, ?, ?, 0, 0, ?, ?, ?)""",
-                    (key, chapter_id, lesson_id, completed,
-                     puzzle_completed, now if passed else None, now),
-                )
-        _check_and_award_badges(conn, db_path)
-        return get_lesson_progress(chapter_id, lesson_id, db_path)
-    finally:
-        conn.close()
-
-
-def save_exercise_result(
-    chapter_id: str,
-    lesson_id: str,
-    exercise_type: str = "practice",
-    passed: bool = True,
-    db_path: Optional[Path] = None,
-) -> dict:
-    """
-    演習結果を保存する。
-    exercise_type: "practice" (練習問題) または "hdl" (HDL演習)
-    """
-    conn = _get_conn(db_path)
-    key = f"{chapter_id}/{lesson_id}"
-    now = datetime.now(timezone.utc).isoformat()
-
-    try:
-        existing = conn.execute(
-            "SELECT * FROM lesson_progress WHERE lesson_key = ?", (key,)
-        ).fetchone()
-
-        with conn:
-            if existing:
-                if passed:
-                    conn.execute(
-                        """UPDATE lesson_progress
-                           SET completed=1,
-                               completed_at=COALESCE(completed_at, ?), updated_at=?
-                           WHERE lesson_key=?""",
-                        (now, now, key),
-                    )
-            else:
-                conn.execute(
-                    """INSERT INTO lesson_progress
-                       (lesson_key, chapter_id, lesson_id, completed,
-                        quiz_score, quiz_total, puzzle_completed, completed_at, updated_at)
-                       VALUES (?, ?, ?, ?, 0, 0, 0, ?, ?)""",
-                    (key, chapter_id, lesson_id, 1 if passed else 0,
-                     now if passed else None, now),
+                    """UPDATE lesson_progress
+                       SET puzzle_completed=1, completed=1,
+                           completed_at=COALESCE(completed_at,?), updated_at=?
+                       WHERE lesson_key=?""",
+                    (now, now, key),
                 )
         _check_and_award_badges(conn, db_path)
         return get_lesson_progress(chapter_id, lesson_id, db_path)
@@ -237,7 +286,6 @@ def save_exercise_result(
 
 
 def get_badges(db_path: Optional[Path] = None) -> list[dict]:
-    """獲得済みバッジ一覧を返す"""
     conn = _get_conn(db_path)
     try:
         rows = conn.execute("SELECT * FROM badges ORDER BY earned_at").fetchall()
@@ -249,9 +297,7 @@ def get_badges(db_path: Optional[Path] = None) -> list[dict]:
 def _check_and_award_badges(
     conn: sqlite3.Connection, db_path: Optional[Path] = None
 ) -> None:
-    """進捗に応じてバッジを付与する"""
     now = datetime.now(timezone.utc).isoformat()
-
     rows = conn.execute("SELECT * FROM lesson_progress").fetchall()
     progress_list = [dict(r) for r in rows]
 
@@ -261,7 +307,6 @@ def _check_and_award_badges(
     )
 
     badges_to_award: list[tuple[str, str]] = []
-
     if completed_count >= 1:
         badges_to_award.append(("first_lesson", "🌱 はじめの一歩"))
     if completed_count >= 3:
@@ -280,3 +325,18 @@ def _check_and_award_badges(
                     "INSERT INTO badges (badge_id, label, earned_at) VALUES (?, ?, ?)",
                     (badge_id, label, now),
                 )
+
+
+# 後方互換 alias（旧コードとの互換性）
+def save_exercise_result(
+    chapter_id: str,
+    lesson_id: str,
+    exercise_type: str = "practice",
+    passed: bool = True,
+    db_path: Optional[Path] = None,
+) -> dict:
+    """後方互換：新しいコードは save_practice_problem_result / save_hdl_result を使う"""
+    if exercise_type == "hdl" and passed:
+        return save_hdl_result(chapter_id, lesson_id, db_path=db_path)
+    # practice の場合は何もしない（problem_id が必要なため）
+    return get_lesson_progress(chapter_id, lesson_id, db_path)

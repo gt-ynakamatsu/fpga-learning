@@ -33,7 +33,8 @@ from fpga_study.progress import (
     get_badges,
     get_lesson_progress,
     init_db,
-    save_exercise_result,
+    save_hdl_result,
+    save_practice_problem_result,
     save_puzzle_result,
     save_quiz_result,
 )
@@ -189,7 +190,14 @@ def create_app(
     async def api_quiz_complete(
         chapter_id: str, lesson_id: str, req: QuizCompleteRequest
     ) -> dict:
-        return save_quiz_result(chapter_id, lesson_id, req.score, req.total, db_path)
+        lesson_info = load_lesson(chapter_id, lesson_id)
+        exercise = load_exercise(chapter_id, lesson_id)
+        all_prob_ids = [p["id"] for p in (exercise or {}).get("problems", [])]
+        has_hdl = (lesson_info or {}).get("has_hdl_exercise", False)
+        return save_quiz_result(
+            chapter_id, lesson_id, req.score, req.total,
+            all_prob_ids, has_hdl, db_path
+        )
 
     # ─── 練習問題 (exercise) ─────────────────────────────
 
@@ -205,7 +213,15 @@ def create_app(
                 chapter_id, lesson_id, req.problem_id, req.answer
             )
             if result["correct"]:
-                save_exercise_result(chapter_id, lesson_id, "practice", True, db_path)
+                exercise = load_exercise(chapter_id, lesson_id)
+                all_problem_ids = [p["id"] for p in (exercise or {}).get("problems", [])]
+                lesson_info = load_lesson(chapter_id, lesson_id)
+                has_hdl = (lesson_info or {}).get("has_hdl_exercise", False)
+                quiz_total = len((lesson_info or {}).get("quiz", {}).get("questions", []))
+                save_practice_problem_result(
+                    chapter_id, lesson_id, req.problem_id,
+                    all_problem_ids, has_hdl, quiz_total, db_path
+                )
             # 正解を返さない
             result.pop("correct_answer", None)
             return result
@@ -283,7 +299,13 @@ def create_app(
                     result = await run_in_threadpool(sim.run, [code_path], spec_path)
 
                 if result.success:
-                    save_exercise_result(chapter_id, lesson_id, "hdl", True, db_path)
+                    exercise_info = load_exercise(chapter_id, lesson_id)
+                    all_prob_ids = [p["id"] for p in (exercise_info or {}).get("problems", [])]
+                    lesson_info2 = load_lesson(chapter_id, lesson_id)
+                    q_total = len((lesson_info2 or {}).get("quiz", {}).get("questions", []))
+                    save_hdl_result(
+                        chapter_id, lesson_id, all_prob_ids, q_total, db_path
+                    )
 
                 # ケース名の日本語マッピング（exercise.yaml の case_descriptions）
                 case_descriptions = exercise.get("case_descriptions", {})
@@ -297,9 +319,9 @@ def create_app(
                             continue
                         offset_ns = getattr(ch, "offset_ns", 0) or 0
                         if offset_ns:
-                            loc = f"サイクル {ch.cycle} の途中（+{offset_ns}ns）"
+                            loc = f"{ch.cycle}サイクル目のクロックの立ち上がりから{offset_ns}ns後"
                         else:
-                            loc = f"サイクル {ch.cycle}"
+                            loc = f"{ch.cycle}サイクル目"
                         failed_checks.append({
                             "name": ch.name,
                             "signal": ch.signal,
@@ -341,6 +363,8 @@ def create_app(
                     "errors": errors_out,
                     "lint_hints": lint_hints,
                     "user_message": result.user_message,
+                    # 空 JSON 時に stderr を折りたたんで表示するため
+                    "raw_detail": result.raw_output if result.status == "ERROR" and not result.cases else None,
                 }
 
         return await _grade()

@@ -41,17 +41,19 @@ def _get_installed_version():
     except Exception:
         return None
 
-def _is_v020_or_later() -> bool:
+def _is_v021_or_later() -> bool:
     ver = _get_installed_version()
     if not ver:
         return False
     try:
-        return tuple(int(x) for x in ver.split(".")) >= (0, 2, 0)
+        return tuple(int(x) for x in ver.split(".")) >= (0, 2, 1)
     except ValueError:
         return False
 
 
-DELTASIM_V020_OR_LATER = _is_v020_or_later()
+DELTASIM_V021_OR_LATER = _is_v021_or_later()
+# backward compat alias
+DELTASIM_V021_OR_LATER = DELTASIM_V021_OR_LATER
 
 _REQUIRE_DELTASIM = os.environ.get("REQUIRE_DELTASIM", "0") == "1"
 
@@ -62,19 +64,19 @@ skip_if_no_deltasim = pytest.mark.skipif(
 
 def pytest_configure(config):
     """REQUIRE_DELTASIM=1 のとき、バージョン不足なら FAIL"""
-    if _REQUIRE_DELTASIM and not DELTASIM_V020_OR_LATER:
+    if _REQUIRE_DELTASIM and not DELTASIM_V021_OR_LATER:
         pytest.exit(
-            "REQUIRE_DELTASIM=1 が設定されていますが deltasim 0.2.0 以上がありません。"
-            " pip install 'git+https://github.com/gt-ynakamatsu/deltasim.git@v0.2.0'",
+            "REQUIRE_DELTASIM=1 が設定されていますが deltasim 0.2.1 以上がありません。"
+            " pip install 'git+https://github.com/gt-ynakamatsu/deltasim.git@v0.2.1'",
             returncode=1,
         )
 
 
 require_v020 = pytest.mark.skipif(
-    not DELTASIM_V020_OR_LATER,
+    not DELTASIM_V021_OR_LATER,
     reason=(
-        "deltasim 0.2.0 以上が必要です。"
-        " pip install 'git+https://github.com/gt-ynakamatsu/deltasim.git@v0.2.0'"
+        "deltasim 0.2.1 以上が必要です。"
+        " pip install 'git+https://github.com/gt-ynakamatsu/deltasim.git@v0.2.1'"
     ),
 )
 
@@ -212,13 +214,13 @@ class TestChapter07Answers:
 class TestDeltasimVersionRequirement:
     """§15 サポートの確認（このテストが FAIL なら古い deltasim を使用中）"""
 
-    def test_v020_or_later_is_installed(self):
+    def test_v021_or_later_is_installed(self):
         """
         offset_ns が正しく動作することを確認する。
         FAIL した場合: deltasim b482527 以降をインストールしてください。
         pip install git+https://github.com/gt-ynakamatsu/deltasim.git@b482527
         """
-        assert DELTASIM_V020_OR_LATER, (
+        assert DELTASIM_V021_OR_LATER, (
             "⚠️ §15 (offset_ns) が未対応の deltasim が使われています。\n"
             "b482527 以降をインストールしてください:\n"
             "pip install 'git+https://github.com/gt-ynakamatsu/deltasim.git@b482527'\n"
@@ -276,7 +278,7 @@ class TestWrongCodesManifest:
         reason = entry.get("reason", "")
 
         # §15 が必要なファイルは offset_ns 非対応なら SKIP
-        if filename in _OFFSET_NS_REQUIRED_FILES and not DELTASIM_V020_OR_LATER:
+        if filename in _OFFSET_NS_REQUIRED_FILES and not DELTASIM_V021_OR_LATER:
             pytest.skip(
                 f"{filename} は §15 (offset_ns) を使って検出するため、"
                 f"古い deltasim では silent PASS になる可能性があります。"
@@ -339,10 +341,10 @@ class TestSpecZeroWarnings:
         answer = DATA_ROOT / chapter / lesson / "answer.sv"
         result = run_deltasim_test(answer, spec)
 
-        # warnings キーが存在すること（v0.2.0 以降は常に present）
+        # warnings キーが存在すること（v0.2.1 以降は常に present）
         assert "warnings" in result, (
             f"[warnings キーが存在しません] {chapter}/{lesson}\n"
-            f"deltasim v0.2.0 以降を使用しているか確認してください。"
+            f"deltasim v0.2.1 以降を使用しているか確認してください。"
         )
 
         warnings = result.get("warnings") or []
@@ -358,6 +360,71 @@ class TestSpecZeroWarnings:
 
 
 # ── deltasim バージョン確認 ────────────────────────────────────────────
+
+
+@require_v020
+class TestLoopDetection:
+    """E_DELTA_LIMIT / E_LOOP_LIMIT による回路終わらない検出テスト (v0.2.1+)"""
+
+    def test_combinational_loop_gives_friendly_message(self):
+        """assign y = ~y; → E_DELTA_LIMIT → 回路が終わらない案内"""
+        from fpga_study.simulator import _parse_deltasim_result
+        with tempfile.TemporaryDirectory() as tmp:
+            sv = Path(tmp) / "loop.sv"
+            sv.write_text(
+                "module loop_test(input logic a, output logic y);\n"
+                "    assign y = ~y;\n"
+                "endmodule\n"
+            )
+            spec = Path(tmp) / "spec.yaml"
+            spec.write_text(
+                "version: 1\ntop: loop_test\n"
+                "clock: {signal: clk, period_ns: 10}\nsim: {cycles: 5}\n"
+                "cases:\n  - name: test\n    expected:\n      - {at: 2, check: {y: 0}}\n"
+            )
+            json_out = Path(tmp) / "r.json"
+            import subprocess as sp
+            proc = sp.run(
+                ["deltasim", "test", str(sv), "--spec", str(spec), "--json", str(json_out)],
+                capture_output=True, text=True, timeout=15,
+            )
+            raw = json_out.read_text() if json_out.exists() else ""
+
+        result = _parse_deltasim_result(raw, proc.stderr or "")
+
+        # E_DELTA_LIMIT がコードとして存在すること
+        all_codes = {e.code for e in result.errors}
+        for c in result.cases:
+            all_codes.update(e.code for e in c.case_errors)
+        assert "E_DELTA_LIMIT" in all_codes, \
+            f"E_DELTA_LIMIT が検出されませんでした: codes={all_codes}, status={result.status}"
+
+        # ユーザーメッセージが初心者向けであること
+        assert "回路が終わらない" in result.user_message, \
+            f"初心者向けメッセージがありません: {result.user_message}"
+
+
+@require_v020
+class TestMultiPortDeclaration:
+    """1行に複数のポートを書いた場合でも合格すること (v0.2.1+)"""
+
+    def test_ch6_lesson03_multiport_syntax_passes(self):
+        """input logic clk, rst, d の書き方が deltasim v0.2.1+ で通ること"""
+        answer = DATA_ROOT / "chapter06" / "lesson03" / "answer.sv"
+        spec = DATA_ROOT / "chapter06" / "lesson03" / "spec.yaml"
+        with tempfile.TemporaryDirectory() as tmp:
+            original = answer.read_text()
+            multiport = original.replace(
+                "    input  logic clk,\n    input  logic rst,\n    input  logic d,",
+                "    input  logic clk, rst, d,"
+            )
+            mp_sv = Path(tmp) / "d_ff_multiport.sv"
+            mp_sv.write_text(multiport)
+            raw_result = run_deltasim_test(mp_sv, spec)
+
+        assert raw_result.get("status") == "PASS", (
+            f"1行複数ポートの書き方が PASS しません: {raw_result}"
+        )
 
 
 @require_v020
