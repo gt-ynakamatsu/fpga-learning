@@ -34,9 +34,9 @@ def _check_blocking_in_ff(code: str) -> list[str]:
     """
     hints: list[str] = []
 
-    # always_ff ブロックを抽出（ネストは考慮しない簡易版）
+    # always_ff ブロックを抽出（begin...end が必要; 1行の always_ff は別処理）
     ff_block_re = re.compile(
-        r"always_ff\s*@\([^)]*\)\s*(?:begin)?(.*?)(?:end\b|$)",
+        r"always_ff\s*@\([^)]*\)\s*begin(.*?)end\b",
         re.DOTALL | re.IGNORECASE,
     )
 

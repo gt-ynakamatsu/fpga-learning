@@ -362,7 +362,8 @@ class TestParserMultiCaseFail:
     def test_user_message_shows_failed_case(self):
         result = _parse_deltasim_result(SAMPLE_FAIL_MULTI_CASE)
         assert "❌" in result.user_message
-        assert "overflow" in result.user_message
+        # ケース名（英語）は user_message に含めない（フロントエンドが表示する）
+        assert "ケース" in result.user_message or "不合格" in result.user_message
 
     def test_summary_elapsed_ms(self):
         result = _parse_deltasim_result(SAMPLE_FAIL_MULTI_CASE)

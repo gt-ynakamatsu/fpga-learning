@@ -175,6 +175,35 @@ def _ensure_row(
 
 # ── 各採点結果の保存 ───────────────────────────────────────────────
 
+def reset_quiz_attempt(
+    chapter_id: str,
+    lesson_id: str,
+    attempt_id: str,
+    db_path: Optional[Path] = None,
+) -> dict:
+    """
+    クイズの挑戦をリセット（「もう一度」押下時）。
+    quiz_answers_done をリセットし、新しい attempt_id を記録する。
+    quiz_score・quiz_total もリセットし、完了フラグも外す。
+    """
+    conn = _get_conn(db_path)
+    key = f"{chapter_id}/{lesson_id}"
+    now = datetime.now(timezone.utc).isoformat()
+    try:
+        _ensure_row(conn, key, chapter_id, lesson_id, now)
+        with conn:
+            conn.execute(
+                """UPDATE lesson_progress
+                   SET quiz_answers_done='[]', quiz_score=0, quiz_total=0,
+                       completed=0, completed_at=NULL, updated_at=?
+                   WHERE lesson_key=?""",
+                (now, key),
+            )
+        return get_lesson_progress(chapter_id, lesson_id, db_path)
+    finally:
+        conn.close()
+
+
 def save_quiz_answer(
     chapter_id: str,
     lesson_id: str,
@@ -182,11 +211,13 @@ def save_quiz_answer(
     all_question_ids: list[str],
     all_problem_ids: list[str] = (),
     has_hdl: bool = False,
+    attempt_id: Optional[str] = None,
     db_path: Optional[Path] = None,
 ) -> dict:
     """
     クイズの1問の正解を記録する（サーバー側で点数を管理）。
-    全問正解になったら自動的に quiz_score を更新し完了条件を再評価する。
+    attempt_id を使って1回の挑戦内の正解だけを集計する。
+    全問正解（1回の挑戦で）になったら自動的に完了条件を再評価する。
     """
     conn = _get_conn(db_path)
     key = f"{chapter_id}/{lesson_id}"

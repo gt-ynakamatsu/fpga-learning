@@ -356,7 +356,7 @@ class DeltasimCLISimulator:
                     status="ERROR",
                     user_message=(
                         "⏱️ シミュレーションが時間内に終わりませんでした。\n"
-                        "コードに無限ループがないか確認してみましょう。"
+                        "無限ループ、または文法の間違い（endmodule の書き忘れなど）がないか確認してください。"
                     ),
                 )
             except Exception as exc:
@@ -599,25 +599,14 @@ def _build_user_message(
             # ファイル名のみ（/tmp パスを除去）
             fname = Path(e.file).name if e.file else ""
             loc = f"{fname}:{e.line}" if fname else (f"行{e.line}" if e.line else "")
-            lines.append(f"  [{e.severity}]{(' ' + loc) if loc else ''} — {_friendly_error(e.message)}")
+            lines.append(f"  [{e.severity}]{(' ' + loc) if loc else ''} — {_friendly_error(e.message, e.code)}")
             shown += 1
             if shown >= 5:
                 break
     elif cases:
         failed_cases = [c for c in cases if c.status not in ("PASS", "SKIP")]
-        lines.append(f"❌ {len(failed_cases)}ケースが不合格です：")
-        for c in failed_cases[:5]:
-            failed_checks = [ch for ch in c.checks if ch.status != "PASS"]
-            detail = ""
-            if failed_checks:
-                fc = failed_checks[0]
-                detail = (
-                    f" — {fc.signal}(サイクル{fc.cycle}): "
-                    f"期待={fc.expected} / 実際={fc.actual}"
-                )
-            lines.append(f"  [{c.status}] {c.name}{detail}")
-        if len(failed_cases) > 5:
-            lines.append(f"  （他 {len(failed_cases) - 5} ケース）")
+        lines.append(f"❌ {len(failed_cases)}ケースが不合格です。")
+        # 詳細はフロントエンドのケース別表示に任せる（英語ケース名・ns情報は app.js で処理）
     elif status == "FAIL":
         failed = [c for c in checks if c.status != "PASS"]
         lines.append(f"❌ {len(failed)}件のチェックが不合格です：")
@@ -636,23 +625,40 @@ def _build_user_message(
     return "\n".join(lines)
 
 
-def _friendly_error(message: str) -> str:
-    """エラーメッセージを初心者向けに言い換える（/tmp パスを除去）"""
+def _friendly_error(message: str, code: str = "") -> str:
+    """
+    エラーメッセージを初心者向けに言い換える。
+    可能な限り code で判定。code だけで区別できないものは message で判定。
+    """
     import re as _re
-    message = _re.sub(r'/tmp/[^\s:,]+', 'design.sv', message)
+    message = _re.sub(r'/tmp/[^\s:,)]+', 'design.sv', message)
     lower = message.lower()
+
+    if code == "E002":
+        return "モジュール名が spec の設定（top:）と異なります"
+    if code == "E_DELTA_LIMIT":
+        return "組み合わせのループがあります（assign y = ~y; のような自己参照）"
+    if code == "E_LOOP_LIMIT":
+        return "繰り返しが終わらないコード（while ループが上限を超えました）"
+    if code == "E_INTERNAL":
+        return "採点ツールの内部エラーが発生しました"
+    if "expected port direction" in message:
+        return "ポートの向き（input / output / inout）が指定されていません"
+    if "unexpected token" in lower:
+        return "コードの書き方（文法）に誤りがあります"
+    if "top module" in lower and "not found" in lower:
+        return "モジュール名が spec の設定（top:）と異なります"
+
     hints = [
-        ("syntax error",       "書き方のミスがあります（文法エラー）"),
-        ("expected ';'",       "セミコロン ';' が抜けています"),
-        ("undeclared",         "宣言されていない信号や変数を使っています"),
-        ("undefined",          "定義されていないものを参照しています"),
-        ("timeout",            "処理が時間内に終わりませんでした"),
-        ("connection refused", "シミュレータに接続できませんでした"),
-        ("multiple drivers",   "複数の箇所から同じ信号を制御しています"),
+        ("expected ';'",  "セミコロン ';' が抜けています"),
+        ("syntax error",    "書き方のミスがあります（文法エラー）"),
+        ("undeclared",      "宣言されていない信号や変数を使っています"),
+        ("undefined",       "定義されていないものを参照しています"),
+        ("multiple drivers","複数の箇所から同じ信号を制御しています"),
     ]
     for keyword, friendly in hints:
         if keyword in lower:
-            return f"{friendly}（詳細: {message}）"
+            return friendly
     return message
 
 

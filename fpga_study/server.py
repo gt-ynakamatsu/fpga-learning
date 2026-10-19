@@ -9,6 +9,7 @@ from typing import Any, Optional, Union
 
 import asyncio
 import concurrent.futures
+import re as _re_server
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.concurrency import run_in_threadpool
@@ -33,6 +34,7 @@ from fpga_study.progress import (
     get_badges,
     get_lesson_progress,
     init_db,
+    reset_quiz_attempt,
     save_hdl_result,
     save_practice_problem_result,
     save_puzzle_result,
@@ -72,9 +74,11 @@ def _filter_chapters(chapters: list[dict], show_drafts: bool) -> list[dict]:
 
 # ── リクエストモデル ──────────────────────────────────────────────────
 
+
 class QuizAnswerRequest(BaseModel):
     question_id: str
     answer_index: int
+    attempt_id: Optional[str] = None
 
 
 class QuizCompleteRequest(BaseModel):
@@ -99,6 +103,43 @@ class HdlGradeRequest(BaseModel):
 # ── アプリファクトリ ─────────────────────────────────────────────────
 
 _grading_semaphore = asyncio.Semaphore(1)  # 同時採点1件制限
+
+
+def _strip_comments(code: str) -> str:
+    """コメントを除去して検査用のコードを返す"""
+    code = _re_server.sub(r'//[^\n]*', '', code)
+    code = _re_server.sub(r'/\*.*?\*/', '', code, flags=_re_server.DOTALL)
+    return code
+
+
+def _check_module_structure(code: str) -> Optional[str]:
+    """
+    module と endmodule の数が一致するか確認する。
+    一致しない場合はエラーメッセージを返す（None なら OK）。
+    """
+    clean = _strip_comments(code)
+    n_module = len(_re_server.findall(r'\bmodule\b', clean))
+    n_endmodule = len(_re_server.findall(r'\bendmodule\b', clean))
+    if n_module > 0 and n_endmodule < n_module:
+        return f"endmodule が足りません（module {n_module}個に対して endmodule {n_endmodule}個）"
+    return None
+
+
+def _get_code_module_name(code: str) -> Optional[str]:
+    """コードから最初の module 名を取得する"""
+    clean = _strip_comments(code)
+    m = _re_server.search(r'\bmodule\s+(\w+)', clean)
+    return m.group(1) if m else None
+
+
+def _get_spec_top(spec_path: Path) -> Optional[str]:
+    """spec.yaml の top フィールドを取得する"""
+    try:
+        import yaml
+        data = yaml.safe_load(spec_path.read_text(encoding="utf-8"))
+        return data.get("top")
+    except Exception:
+        return None
 
 
 def create_app(
@@ -142,6 +183,10 @@ def create_app(
 
     @app.get("/api/chapters/{chapter_id}/lessons")
     async def api_lessons(chapter_id: str) -> list[dict]:
+        # draft 章のレッスン一覧も 404 にする
+        ch = load_chapter(chapter_id)
+        if ch:
+            _check_visible(ch.get("status"), "この章は現在公開されていません")
         lessons = load_lessons(chapter_id)
         if not lessons:
             raise HTTPException(status_code=404, detail="章が見つかりません")
@@ -199,11 +244,20 @@ def create_app(
                 has_hdl = lesson_for_check.get("has_hdl_exercise", False)
                 save_quiz_answer(
                     chapter_id, lesson_id, req.question_id,
-                    all_question_ids, all_prob_ids, has_hdl, db_path
+                    all_question_ids, all_prob_ids, has_hdl,
+                    attempt_id=req.attempt_id, db_path=db_path
                 )
             return result
         except (FileNotFoundError, ValueError) as exc:
             raise HTTPException(status_code=404, detail=str(exc))
+
+    @app.post("/api/chapters/{chapter_id}/lessons/{lesson_id}/quiz/reset")
+    async def api_quiz_reset(chapter_id: str, lesson_id: str) -> dict:
+        """「もう一度」押下時に呼び出す。DB の quiz_answers_done をリセットする"""
+        lesson_rst = load_lesson(chapter_id, lesson_id)
+        if lesson_rst:
+            _check_visible(lesson_rst.get("status"), "このレッスンは現在公開されていません")
+        return reset_quiz_attempt(chapter_id, lesson_id, "reset", db_path)
 
     @app.post("/api/chapters/{chapter_id}/lessons/{lesson_id}/quiz/complete")
     async def api_quiz_complete(
@@ -296,6 +350,45 @@ def create_app(
         spec_path = get_exercise_spec_path(chapter_id, lesson_id)
         if not spec_path or not spec_path.exists():
             raise HTTPException(status_code=404, detail="spec.yaml が見つかりません")
+
+        # 採点前チェック: module / endmodule の数が一致するか
+        module_check = _check_module_structure(req.code)
+        if module_check:
+            return {
+                "simulator_available": True,
+                "simulator_version_ok": True,
+                "version": ver,
+                "message": ver_msg,
+                "status": "ERROR",
+                "cases": [],
+                "errors": [{"code": "E_NO_ENDMODULE", "severity": "error",
+                            "file": "design.sv", "line": 0,
+                            "message": module_check}],
+                "lint_hints": lint_hints,
+                "user_message": f"❌ {module_check}",
+                "error_detail": [{"code": "E_NO_ENDMODULE", "message": module_check}],
+            }
+
+        # 採点前チェック: module 名が spec の top と一致するか
+        top_name = _get_spec_top(spec_path)
+        if top_name:
+            module_name = _get_code_module_name(req.code)
+            if module_name and module_name != top_name:
+                msg = f"モジュール名 '{module_name}' が spec の設定（top: {top_name}）と異なります"
+                return {
+                    "simulator_available": True,
+                    "simulator_version_ok": True,
+                    "version": ver,
+                    "message": ver_msg,
+                    "status": "ERROR",
+                    "cases": [],
+                    "errors": [{"code": "E002", "severity": "error",
+                                "file": "design.sv", "line": 0,
+                                "message": msg}],
+                    "lint_hints": lint_hints,
+                    "user_message": f"❌ {msg}",
+                    "error_detail": [{"code": "E002", "message": msg}],
+                }
 
         # 同時採点1件制限
         if _grading_semaphore.locked():

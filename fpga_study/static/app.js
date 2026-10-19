@@ -364,7 +364,7 @@ function _renderHdlResults(container, res) {
     container.append(h('div', { class: msgCls, style: 'white-space:pre-line' }, res.user_message));
   }
 
-  if (res.status === 'PASS') return;  // PASS は user_message だけでよい
+  // PASS でも lint ヒントがあれば表示する（early return しない）
   for (const c of (res.cases || [])) {
     const cEl = h('div', { class: 'hdl-case' });
     const icon = c.status === 'PASS' ? '✓' : c.status === 'SKIP' ? '⏭' : '✗';
@@ -414,6 +414,7 @@ function buildQuizSection(questions, chapterId, lessonId) {
   let currentIdx = 0;
   let score = 0;
   const answers = new Array(questions.length).fill(null);
+  let attemptId = Date.now().toString();  // 挑戦ごとにユニークなID
 
   const section = h('div', { class: 'quiz-section' });
 
@@ -443,14 +444,13 @@ function buildQuizSection(questions, chapterId, lessonId) {
             )
           )
         ),
-        h('div', { class: 'quiz-explanation', id: 'quiz-explanation' },
-          `💡 解説: ${q.explanation || ''}`)
+        h('div', { class: 'quiz-explanation', id: 'quiz-explanation' })
       )
     );
 
     // 既に回答済みなら状態を再現
     if (answers[currentIdx] !== null) {
-      applyAnswer(answers[currentIdx], q.answer);
+      applyAnswer(answers[currentIdx]);
     }
 
     const navRow = h('div', { class: 'lesson-nav' });
@@ -478,23 +478,32 @@ function buildQuizSection(questions, chapterId, lessonId) {
         `/api/chapters/${chapterId}/lessons/${lessonId}/quiz/check`,
         { method: 'POST', body: JSON.stringify({ question_id: q.id, answer_index: selectedIdx }) }
       );
-      answers[currentIdx] = { selected: selectedIdx, correct: result.correct, correctIdx: result.correct_index };
+      answers[currentIdx] = {
+        selected: selectedIdx,
+        correct: result.correct,
+        correctIdx: result.correct_index,
+        explanation: result.explanation || '',
+      };
       if (result.correct) score++;
-      applyAnswer(selectedIdx, result.correct_index);
+      applyAnswer(answers[currentIdx]);
     } catch (e) {
       showToast('回答の送信に失敗しました', 'error');
     }
   }
 
-  function applyAnswer(selectedIdx, correctIdx) {
+  function applyAnswer(answer) {
+    const { selected, correctIdx, explanation } = answer;
     const opts = $$('.quiz-option', section);
     opts.forEach((btn, i) => {
       btn.disabled = true;
       if (i === correctIdx) btn.classList.add('correct');
-      else if (i === selectedIdx && selectedIdx !== correctIdx) btn.classList.add('wrong');
+      else if (i === selected && selected !== correctIdx) btn.classList.add('wrong');
     });
-    const explanation = $('#quiz-explanation', section);
-    if (explanation) explanation.classList.add('visible');
+    const explanationEl = $('#quiz-explanation', section);
+    if (explanationEl) {
+      if (explanation) explanationEl.textContent = '💡 解説: ' + explanation;
+      explanationEl.classList.add('visible');
+    }
     const nextBtn = $('#quiz-next-btn', section);
     if (nextBtn) nextBtn.removeAttribute('disabled');
   }
@@ -516,7 +525,16 @@ function buildQuizSection(questions, chapterId, lessonId) {
         h('div', { style: 'display:flex;gap:1rem;justify-content:center;margin-top:1rem;flex-wrap:wrap' },
           h('button', {
             class: 'btn btn-secondary',
-            onclick: () => { currentIdx = 0; score = 0; answers.fill(null); render(); }
+            onclick: async () => {
+              currentIdx = 0; score = 0; answers.fill(null);
+              attemptId = Date.now().toString();
+              // サーバー側の記録もリセット（1回の挑戦で全問正解が条件）
+              try {
+                await apiFetch(`/api/chapters/${chapterId}/lessons/${lessonId}/quiz/reset`,
+                  { method: 'POST', body: JSON.stringify({}) });
+              } catch (_) {}
+              render();
+            }
           }, '🔄 もう一度')
         )
       )

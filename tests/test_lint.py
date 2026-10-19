@@ -70,15 +70,17 @@ endmodule
         assert hints == []
 
     def test_hint_message_is_beginner_friendly(self):
-        """ヒントメッセージが初心者向けであること"""
+        """ヒントメッセージが初心者向けであること（begin...end が必要）"""
         code = """
-module d_ff(input logic clk, d, output logic q);
-    always_ff @(posedge clk) q = d;
+module d_ff(input logic clk, input logic d, output logic q);
+    always_ff @(posedge clk) begin
+        q = d;
+    end
 endmodule
 """
         hints = lint_hdl(code)
         assert len(hints) >= 1
-        assert "<=", hints[0]
+        assert "<=" in hints[0]
         # スタックトレースなどがないこと
         assert "Traceback" not in hints[0]
         assert "Error" not in hints[0]
