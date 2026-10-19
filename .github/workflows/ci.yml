@@ -34,9 +34,12 @@ jobs:
           pip install "git+https://github.com/gt-ynakamatsu/deltasim.git" --quiet || \
           echo "deltasim インストール失敗（統合テストはスキップされます）"
 
-      - name: テストの実行
-        run: pytest -v --tb=short
+      - name: ユニットテスト・統合テストの実行
+        run: pytest tests/ --ignore=tests/test_e2e.py -v --tb=short
+
+      - name: E2E テストの実行
+        run: pytest tests/test_e2e.py -v --tb=short
 
       - name: カバレッジレポート
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
-        run: pytest --cov=fpga_study --cov-report=term-missing --cov-fail-under=70
+        run: pytest tests/ --ignore=tests/test_e2e.py --cov=fpga_study --cov-report=term-missing --cov-fail-under=70
