@@ -2,8 +2,28 @@
 
 from __future__ import annotations
 
+import shutil
+
 import pytest
 from fastapi.testclient import TestClient
+
+
+def _deltasim_v022_or_later() -> bool:
+    """deltasim 0.2.2 以上がインストールされているか確認"""
+    if not shutil.which("deltasim"):
+        return False
+    try:
+        from fpga_study.simulator import get_deltasim_version, _version_tuple
+        ver = get_deltasim_version()
+        return ver is not None and _version_tuple(ver) >= (0, 2, 2)
+    except Exception:
+        return False
+
+
+_REQUIRE_DELTASIM_022 = pytest.mark.skipif(
+    not _deltasim_v022_or_later(),
+    reason="deltasim 0.2.2 以上が必要（版不足時は事前チェック前にバージョンエラーを返す）",
+)
 
 
 class TestChapterAPI:
@@ -414,8 +434,12 @@ class TestProgressAPI:
 
 
 class TestHdlPreflightChecks:
-    """採点前チェック: テンプレート未編集・モジュール名・endmodule"""
+    """採点前チェック: テンプレート未編集・モジュール名・endmodule
+    
+    deltasim 0.2.2 未満・なし環境では、事前チェック前にバージョンエラーが返るため SKIP。
+    """
 
+    @_REQUIRE_DELTASIM_022
     def test_template_not_modified_gets_special_message(self, client):
         """テンプレートそのまま提出 → §11.24 専用メッセージ"""
         from fpga_study.content.loader import load_exercise
@@ -434,6 +458,7 @@ class TestHdlPreflightChecks:
             f"テンプレート未編集の専用メッセージが出ません: {msg!r}"
         )
 
+    @_REQUIRE_DELTASIM_022
     def test_wrong_module_name_shows_correct_name(self, client):
         """モジュール名間違い → 「{top_name} にしてください」（spec/top: は出さない）"""
         code = "module wrong_name(input logic a, b, output logic y);\n    assign y = a & b;\nendmodule\n"
@@ -451,6 +476,7 @@ class TestHdlPreflightChecks:
             f"spec/top: が学習者に見えています: {msg!r}"
         )
 
+    @_REQUIRE_DELTASIM_022
     def test_endmodule_missing_no_code_name_in_user_message(self, client):
         """endmodule 抜け → E_NO_ENDMODULE コード名が user_message に出ない"""
         code = "module and_gate(input logic a, b, output logic y);\n    assign y = a & b;\n"
