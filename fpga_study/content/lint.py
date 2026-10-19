@@ -19,8 +19,10 @@ def lint_hdl(code: str) -> list[str]:
     """
     hints: list[str] = []
 
-    # always_ff ブロック内で = (blocking) を使用していないか確認
+    # always_ff ブロック内で = (blocking) を使用していないか確認（複数行版）
     hints.extend(_check_blocking_in_ff(code))
+    # 1行の always_ff でも同様に確認
+    hints.extend(_check_blocking_in_ff_single(code))
 
     return hints
 
@@ -67,5 +69,38 @@ def _check_blocking_in_ff(code: str) -> list[str]:
                         "   例: q = d; → q <= d;"
                     )
                     break  # 1ブロックにつき1ヒントで十分
+
+    return hints
+
+
+def _check_blocking_in_ff_single(code: str) -> list[str]:
+    """
+    1行の always_ff（begin...end なし）で = (ブロッキング代入) を検出する。
+    例: always_ff @(posedge clk) q = d;
+    """
+    hints: list[str] = []
+
+    # always_ff @(...) の後に begin なしで直接文が来るケース
+    single_ff_re = re.compile(
+        r"always_ff\s*@\([^)]*\)\s+(?!begin\b)([^\n;]+;)",
+        re.IGNORECASE,
+    )
+
+    for m in single_ff_re.finditer(code):
+        stmt = m.group(1).strip()
+        # // コメントを除去
+        idx = stmt.find("//")
+        if idx >= 0:
+            stmt = stmt[:idx].strip()
+        if not stmt:
+            continue
+        # <= は除外して = を検出（比較演算子 ==, !=, >=, <= も除外）
+        if re.search(r"(?<![<>!])=(?![=>])", stmt) and "<=" not in stmt:
+            hints.append(
+                "💡 ヒント: always_ff ブロックの中では = の代わりに <= "
+                "（非ブロッキング代入）を使ってください。\n"
+                f"   該当行: {stmt}\n"
+                "   例: q = d; → q <= d;"
+            )
 
     return hints

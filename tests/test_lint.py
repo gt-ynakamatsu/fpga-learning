@@ -84,3 +84,26 @@ endmodule
         # スタックトレースなどがないこと
         assert "Traceback" not in hints[0]
         assert "Error" not in hints[0]
+
+
+class TestAlwaysFfSingleLineLint:
+    """1行の always_ff でもブロッキング代入を検出すること"""
+
+    def test_single_line_blocking_triggers_hint(self):
+        """always_ff @(posedge clk) q = d; → ヒントが出る"""
+        code = "module d(input logic clk, d, output logic q);\n    always_ff @(posedge clk) q = d;\nendmodule"
+        hints = lint_hdl(code)
+        assert len(hints) >= 1, f"1行 always_ff でヒントが出ませんでした: {hints}"
+        assert "<=" in hints[0]
+
+    def test_single_line_nonblocking_no_hint(self):
+        """always_ff @(posedge clk) q <= d; → ヒントなし"""
+        code = "module d(input logic clk, d, output logic q);\n    always_ff @(posedge clk) q <= d;\nendmodule"
+        hints = lint_hdl(code)
+        assert hints == [], f"非ブロッキング代入でヒントが出ました: {hints}"
+
+    def test_single_line_with_comment_no_false_positive(self):
+        """1行 always_ff のコメント内 = は無視される"""
+        code = "module d(input logic clk, d, output logic q);\n    always_ff @(posedge clk) q <= d; // q = d の形は NG\nendmodule"
+        hints = lint_hdl(code)
+        assert hints == [], f"コメント内の = でヒントが出ました: {hints}"

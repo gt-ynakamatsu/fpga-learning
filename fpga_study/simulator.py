@@ -130,7 +130,7 @@ def check_deltasim_requirement(
     `deltasim --version` からバージョンを取得し、セマンティックに比較する。
     result JSON の `deltasim_version` フィールドも使って実行時に二重確認できる
     （_parse_deltasim_result 内で自動確認）。
-    0.2.0 未満の場合はグレーディングを拒否し、統合テストは SKIP する。
+    0.2.2 未満の場合はグレーディングを拒否し、統合テストは SKIP する。
     """
     install_hint = "pip install 'git+https://github.com/gt-ynakamatsu/deltasim.git@v0.2.2'"
 
@@ -648,13 +648,16 @@ def _format_e001(e: "ErrorDetail") -> str:
     if "expected port direction" in lower:
         return f"ポートの向き（input / output / inout）が指定されていません{line_str}"
 
-    # 汎用 E001：見出し + 問題内容
+    # 汎用 E001：見出し + 問題内容（§11.22: 英語原文は「詳細」欄のみ）
     jp_detail = _friendly_error(msg, "E001")
     result = f"書き方にまちがいがあります{line_str}"
     if jp_detail and jp_detail != msg:
+        # _friendly_error で日本語に変換できた場合のみ見出し直下に表示
         result += f"\n  → {jp_detail}"
-    elif msg:
+    elif msg and any(ord(c) > 0x3000 for c in msg):
+        # deltasim v0.2.2+ が返す日本語メッセージはそのまま表示
         result += f"\n  → {msg}"
+    # else: 英語原文は error_detail（「詳細」欄）にのみ入る
     return result
 
 

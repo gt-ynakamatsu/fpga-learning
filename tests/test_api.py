@@ -173,6 +173,78 @@ class TestQuizServerSideScore:
         assert prog["quiz_score"] > 0, "quiz/check 後にスコアが記録されていません"
 
 
+class TestQuizAttemptIsolation:
+    """§11.14: 1回の挑戦で全問正解のみ満点（attempt_id 管理）"""
+
+    _CORRECT = [("q1", 1), ("q2", 2), ("q3", 1), ("q4", 2)]
+    _URL = "/api/chapters/chapter01/lessons/lesson01/quiz/check"
+    _RESET_URL = "/api/chapters/chapter01/lessons/lesson01/quiz/reset"
+
+    def test_cumulative_across_attempts_does_not_complete(self, client):
+        """attempt_id が変わると前回の正解はリセットされる（累積では満点にならない）"""
+        # 1回目の attempt: q1 と q2 だけ正解
+        for qid, idx in self._CORRECT[:2]:
+            client.post(self._URL, json={"question_id": qid, "answer_index": idx,
+                                         "attempt_id": "attempt-A"})
+
+        # 2回目の attempt: q3 と q4 だけ正解
+        for qid, idx in self._CORRECT[2:]:
+            client.post(self._URL, json={"question_id": qid, "answer_index": idx,
+                                         "attempt_id": "attempt-B"})
+
+        # attempt-B では q3+q4 しか答えていないので quiz_score < 4
+        prog = client.get("/api/progress/chapter01/lesson01").json()
+        assert prog["quiz_score"] < 4, (
+            f"attempt をまたいだ累積で満点（{prog['quiz_score']}/4）になりました"
+        )
+
+    def test_single_complete_attempt_registers_full_score(self, client):
+        """1回の attempt で全問正解 → スコアが全問分記録される"""
+        attempt_id = "attempt-single"
+        for qid, idx in self._CORRECT:
+            res = client.post(self._URL, json={"question_id": qid, "answer_index": idx,
+                                               "attempt_id": attempt_id})
+            assert res.status_code == 200
+
+        prog = client.get("/api/progress/chapter01/lesson01").json()
+        assert prog["quiz_score"] == 4, (
+            f"1回の attempt で全問正解したのにスコアが {prog['quiz_score']}/4 です"
+        )
+
+    def test_reset_clears_previous_attempt(self, client):
+        """quiz/reset 後に新 attempt_id で始めれば前回の正解は引き継がれない"""
+        # まず1問答える
+        client.post(self._URL, json={"question_id": "q1", "answer_index": 1,
+                                     "attempt_id": "before-reset"})
+        # リセット
+        client.post(self._RESET_URL, json={})
+        # 新しい attempt で q2 だけ答える
+        client.post(self._URL, json={"question_id": "q2", "answer_index": 2,
+                                     "attempt_id": "after-reset"})
+
+        prog = client.get("/api/progress/chapter01/lesson01").json()
+        # q1 の正解は引き継がれず、q2 の 1点のみ
+        assert prog["quiz_score"] == 1, (
+            f"reset 後に前回の正解が引き継がれました: score={prog['quiz_score']}"
+        )
+
+    def test_page_reload_new_attempt_resets_score(self, client):
+        """同じ問題を別 attempt で答えると前回の正解がリセットされる"""
+        # attempt-1 で全問正解
+        for qid, idx in self._CORRECT:
+            client.post(self._URL, json={"question_id": qid, "answer_index": idx,
+                                         "attempt_id": "reload-1"})
+        # ページ「再読み込み」= 新 attempt_id、今回は q1 だけ正解
+        client.post(self._URL, json={"question_id": "q1", "answer_index": 1,
+                                     "attempt_id": "reload-2"})
+
+        prog = client.get("/api/progress/chapter01/lesson01").json()
+        # reload-2 では q1 の 1点のみ（reload-1 の正解は消えた）
+        assert prog["quiz_score"] == 1, (
+            f"ページ再読み込み後に前回の正解が残っています: score={prog['quiz_score']}"
+        )
+
+
 class TestNoTmpPaths:
     """API レスポンスに /tmp パスが含まれないこと"""
 

@@ -351,9 +351,11 @@ def create_app(
         if not spec_path or not spec_path.exists():
             raise HTTPException(status_code=404, detail="spec.yaml が見つかりません")
 
-        # 採点前チェック: module / endmodule の数が一致するか
+        # 採点前チェック: module / endmodule の数が一致するか (§11.21)
         module_check = _check_module_structure(req.code)
         if module_check:
+            # E001 と同じ日本語見出しを使う（学習者にコード名 E_NO_ENDMODULE は出さない）
+            jp_heading = "書き方にまちがいがあります\n  → endmodule がありません"
             return {
                 "simulator_available": True,
                 "simulator_version_ok": True,
@@ -361,12 +363,11 @@ def create_app(
                 "message": ver_msg,
                 "status": "ERROR",
                 "cases": [],
-                "errors": [{"code": "E_NO_ENDMODULE", "severity": "error",
-                            "file": "design.sv", "line": 0,
-                            "message": module_check}],
+                "errors": [],
                 "lint_hints": lint_hints,
-                "user_message": f"❌ {module_check}",
-                "error_detail": [{"code": "E_NO_ENDMODULE", "message": module_check}],
+                "user_message": jp_heading,
+                # 技術的詳細は「詳細」欄のみ（英語コード名は出さない）
+                "error_detail": [{"code": "E001", "message": module_check}],
             }
 
         # 採点前チェック: module 名が spec の top と一致するか

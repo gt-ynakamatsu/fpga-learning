@@ -476,7 +476,7 @@ function buildQuizSection(questions, chapterId, lessonId) {
       const q = questions[currentIdx];
       const result = await apiFetch(
         `/api/chapters/${chapterId}/lessons/${lessonId}/quiz/check`,
-        { method: 'POST', body: JSON.stringify({ question_id: q.id, answer_index: selectedIdx }) }
+        { method: 'POST', body: JSON.stringify({ question_id: q.id, answer_index: selectedIdx, attempt_id: attemptId }) }
       );
       answers[currentIdx] = {
         selected: selectedIdx,

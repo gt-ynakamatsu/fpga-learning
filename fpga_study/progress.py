@@ -38,6 +38,7 @@ def init_db(db_path: Optional[Path] = None) -> None:
                 exercise_problems_done TEXT NOT NULL DEFAULT '[]',
                 hdl_completed INTEGER NOT NULL DEFAULT 0,
                 quiz_answers_done TEXT NOT NULL DEFAULT '[]',
+                quiz_current_attempt TEXT NOT NULL DEFAULT '',
                 completed_at TEXT,
                 updated_at TEXT NOT NULL
             )
@@ -54,6 +55,7 @@ def init_db(db_path: Optional[Path] = None) -> None:
             ("exercise_problems_done", "TEXT NOT NULL DEFAULT '[]'"),
             ("hdl_completed", "INTEGER NOT NULL DEFAULT 0"),
             ("quiz_answers_done", "TEXT NOT NULL DEFAULT '[]'"),
+            ("quiz_current_attempt", "TEXT NOT NULL DEFAULT ''"),
         ]:
             try:
                 conn.execute(f"ALTER TABLE lesson_progress ADD COLUMN {col} {ddl}")
@@ -225,19 +227,29 @@ def save_quiz_answer(
     try:
         _ensure_row(conn, key, chapter_id, lesson_id, now)
         row = conn.execute(
-            "SELECT quiz_answers_done FROM lesson_progress WHERE lesson_key=?", (key,)
+            "SELECT quiz_answers_done, quiz_current_attempt FROM lesson_progress WHERE lesson_key=?", (key,)
         ).fetchone()
-        done = json.loads(row["quiz_answers_done"] or "[]")
+        stored_attempt = row["quiz_current_attempt"] if row else ""
+        done = json.loads(row["quiz_answers_done"] or "[]") if row else []
+
+        # attempt_id が変わったら前回の正解をリセット（§11.14: 1周全問正解が条件）
+        if attempt_id and attempt_id != stored_attempt:
+            done = []
+
         if question_id not in done:
             done.append(question_id)
 
         quiz_total = len(all_question_ids)
         score = sum(1 for qid in all_question_ids if qid in done)
+        new_attempt = attempt_id or stored_attempt
 
         with conn:
             conn.execute(
-                "UPDATE lesson_progress SET quiz_answers_done=?, quiz_score=?, quiz_total=?, updated_at=? WHERE lesson_key=?",
-                (json.dumps(done), score, quiz_total, now, key),
+                """UPDATE lesson_progress
+                   SET quiz_answers_done=?, quiz_score=?, quiz_total=?,
+                       quiz_current_attempt=?, updated_at=?
+                   WHERE lesson_key=?""",
+                (json.dumps(done), score, quiz_total, new_attempt, now, key),
             )
 
         if _check_completed(conn, key, list(all_problem_ids), has_hdl, quiz_total):

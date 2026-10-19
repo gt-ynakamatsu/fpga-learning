@@ -44,7 +44,7 @@ jobs:
           if parts < (0, 2, 2):
               print(f'ERROR: deltasim {ver} < 0.2.2 required')
               sys.exit(1)
-          print(f'OK: deltasim {ver} >= 0.2.1')
+          print(f'OK: deltasim {ver} >= 0.2.2')
           "
 
       - name: Playwright と Chromium のインストール
