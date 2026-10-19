@@ -690,14 +690,14 @@ class TestE001JapaneseHints:
         assert ")" in result or "括弧" in result, f"括弧ヒントが出ません: {result!r}"
 
     def test_semicolon_before_endmodule_hint(self):
-        """expected ';', got 'endmodule' → セミコロン案内（end 抜けではない）"""
+        """expected ';', got 'endmodule' → セミコロン案内（end 不足案内ではない）"""
         from fpga_study.simulator import _format_e001
         e = self._make_error("expected ';', got 'endmodule'", line=6)
         result = _format_e001(e)
         assert "セミコロン" in result, (
             f"「expected ';', got 'endmodule'」でセミコロン案内が出ません: {result!r}"
         )
-        assert "end" not in result or "セミコロン" in result, (
+        assert "「end」が足りません" not in result, (
             f"「end が足りません」になっています（退行）: {result!r}"
         )
 
