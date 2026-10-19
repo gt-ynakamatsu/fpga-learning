@@ -137,6 +137,82 @@ class TestPuzzleAPI:
         assert res.status_code == 404
 
 
+class TestExerciseAPI:
+    def test_exercise_check_correct(self, client):
+        res = client.post(
+            "/api/chapters/chapter01/lessons/lesson01/exercise/check",
+            json={"problem_id": "p1", "answer": 8},
+        )
+        assert res.status_code == 200
+        data = res.json()
+        assert data["correct"] is True
+
+    def test_exercise_check_wrong(self, client):
+        res = client.post(
+            "/api/chapters/chapter01/lessons/lesson01/exercise/check",
+            json={"problem_id": "p1", "answer": 0},
+        )
+        assert res.status_code == 200
+        data = res.json()
+        assert data["correct"] is False
+        assert data["hint"] is not None or data["wrong_hint"] is not None
+
+    def test_exercise_check_invalid_problem(self, client):
+        res = client.post(
+            "/api/chapters/chapter01/lessons/lesson01/exercise/check",
+            json={"problem_id": "nonexistent", "answer": 1},
+        )
+        assert res.status_code == 422
+
+    def test_exercise_in_lesson_response(self, client):
+        res = client.get("/api/chapters/chapter01/lessons/lesson01")
+        assert res.status_code == 200
+        data = res.json()
+        assert "exercise" in data
+        assert data["exercise"] is not None
+        assert data["exercise"]["type"] == "practice"
+
+    def test_exercise_missing_lesson_returns_none(self, client):
+        res = client.get("/api/chapters/chapter02/lessons/lesson03")
+        assert res.status_code == 200
+        # L3 has puzzle, exercise should be present or None
+        data = res.json()
+        assert "exercise" in data
+
+    def test_deltasim_status_endpoint(self, client):
+        res = client.get("/api/deltasim/status")
+        assert res.status_code == 200
+        data = res.json()
+        assert "available" in data
+        assert "version" in data
+        assert "min_version" in data
+
+    def test_hdl_grade_missing_exercise(self, client):
+        res = client.post(
+            "/api/chapters/chapter01/lessons/lesson01/hdl/grade",
+            json={"code": "module test(); endmodule"},
+        )
+        assert res.status_code == 404
+
+    def test_chapters_hides_drafts_by_default(self, client):
+        """デフォルトでは reviewed/published のみ返す"""
+        res = client.get("/api/chapters")
+        assert res.status_code == 200
+        chapters = res.json()
+        for ch in chapters:
+            assert ch.get("status") in ("reviewed", "published", None), (
+                f"draft/review の章が返されました: {ch['id']}: {ch.get('status')}"
+            )
+
+    def test_chapters_shows_drafts_with_param(self, client):
+        """show_drafts=true で全章を返す"""
+        res = client.get("/api/chapters?show_drafts=true")
+        assert res.status_code == 200
+        chapters = res.json()
+        # 全章が返されるはず
+        assert len(chapters) >= 5
+
+
 class TestProgressAPI:
     def test_get_progress_empty(self, client):
         res = client.get("/api/progress")
@@ -164,7 +240,7 @@ class TestProgressAPI:
         completed = [p for p in data["progress"] if p["completed"]]
         assert len(completed) == 1
 
-    def test_homepage_returns_html(self, client):
+    def test_homepage_returns_html(self, client):  # noqa: E301
         res = client.get("/")
         assert res.status_code == 200
         assert "text/html" in res.headers["content-type"]

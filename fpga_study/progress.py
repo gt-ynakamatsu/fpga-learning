@@ -176,6 +176,51 @@ def save_puzzle_result(
         conn.close()
 
 
+def save_exercise_result(
+    chapter_id: str,
+    lesson_id: str,
+    exercise_type: str = "practice",
+    passed: bool = True,
+    db_path: Optional[Path] = None,
+) -> dict:
+    """
+    演習結果を保存する。
+    exercise_type: "practice" (練習問題) または "hdl" (HDL演習)
+    """
+    conn = _get_conn(db_path)
+    key = f"{chapter_id}/{lesson_id}"
+    now = datetime.now(timezone.utc).isoformat()
+
+    try:
+        existing = conn.execute(
+            "SELECT * FROM lesson_progress WHERE lesson_key = ?", (key,)
+        ).fetchone()
+
+        with conn:
+            if existing:
+                if passed:
+                    conn.execute(
+                        """UPDATE lesson_progress
+                           SET completed=1,
+                               completed_at=COALESCE(completed_at, ?), updated_at=?
+                           WHERE lesson_key=?""",
+                        (now, now, key),
+                    )
+            else:
+                conn.execute(
+                    """INSERT INTO lesson_progress
+                       (lesson_key, chapter_id, lesson_id, completed,
+                        quiz_score, quiz_total, puzzle_completed, completed_at, updated_at)
+                       VALUES (?, ?, ?, ?, 0, 0, 0, ?, ?)""",
+                    (key, chapter_id, lesson_id, 1 if passed else 0,
+                     now if passed else None, now),
+                )
+        _check_and_award_badges(conn, db_path)
+        return get_lesson_progress(chapter_id, lesson_id, db_path)
+    finally:
+        conn.close()
+
+
 def get_badges(db_path: Optional[Path] = None) -> list[dict]:
     """獲得済みバッジ一覧を返す"""
     conn = _get_conn(db_path)

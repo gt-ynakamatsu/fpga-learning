@@ -1,4 +1,4 @@
-// PASS_KNOWN_LIMITATION: 出力を1段 FF に通す（正しくは組み合わせ assign）
+// expected: FAIL
 // 整数サイクル検査（offset_ns=0）では区別できない
 // 理由: D=a&b を FF で取り込む場合、at:N の edge では a&b が既に確定しているため
 //       at:N check でも同じ値になる

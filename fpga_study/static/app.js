@@ -196,6 +196,16 @@ route('lesson', async ([_, chapterId, lessonId], root) => {
   );
   $('#lesson-content').innerHTML = lesson.content_html || '<p>コンテンツがありません。</p>';
 
+  // 演習セクション（説明 → 演習 → クイズの順）
+  if (lesson.exercise) {
+    const ex = lesson.exercise;
+    if (ex.type === 'practice' && ex.problems?.length) {
+      root.append(buildExerciseSection(ex.problems, chapterId, lessonId));
+    } else if (ex.type === 'hdl') {
+      root.append(await buildHdlSection(ex, chapterId, lessonId));
+    }
+  }
+
   // クイズセクション
   if (lesson.quiz?.questions?.length) {
     root.append(buildQuizSection(lesson.quiz.questions, chapterId, lessonId));
@@ -226,6 +236,150 @@ route('lesson', async ([_, chapterId, lessonId], root) => {
       : h('a', { href: '#progress', class: 'btn btn-success' }, '🏆 進捗を確認する')
   ));
 });
+
+// ── 練習問題 UI ───────────────────────────────────────────
+
+function buildExerciseSection(problems, chapterId, lessonId) {
+  const section = h('div', { class: 'exercise-section' });
+  section.append(h('h2', {}, '✏️ 練習問題'));
+
+  problems.forEach((prob, idx) => {
+    const probEl = h('div', { class: 'exercise-problem' });
+    probEl.append(h('div', { class: 'exercise-question' }, `${idx + 1}. ${prob.question}`));
+
+    const inputEl = h('input', {
+      class: 'exercise-input',
+      type: prob.type === 'fill_number' ? 'number' : 'text',
+      placeholder: prob.type === 'fill_number' ? '数字を入力' : '答えを入力',
+    });
+    const checkBtn = h('button', { class: 'btn btn-primary', style: 'padding:.5rem 1rem' }, '確認');
+    const feedbackEl = h('div', { class: 'exercise-feedback', style: 'display:none' });
+
+    probEl.append(h('div', { class: 'exercise-input-row' }, inputEl, checkBtn), feedbackEl);
+
+    let answered = false;
+    const doCheck = async () => {
+      if (answered) return;
+      const val = inputEl.value.trim();
+      if (!val) { showToast('答えを入力してください', 'warn'); return; }
+      try {
+        const res = await apiFetch(
+          `/api/chapters/${chapterId}/lessons/${lessonId}/exercise/check`,
+          { method: 'POST', body: JSON.stringify({ problem_id: prob.id, answer: val }) }
+        );
+        feedbackEl.style.display = '';
+        if (res.correct) {
+          feedbackEl.className = 'exercise-feedback correct';
+          feedbackEl.textContent = '✅ 正解！';
+          answered = true; checkBtn.disabled = true; inputEl.disabled = true;
+        } else {
+          feedbackEl.className = 'exercise-feedback wrong';
+          let msg = '❌ 不正解です。';
+          if (res.wrong_hint) msg += '\n💡 ' + res.wrong_hint;
+          else if (res.hint) msg += '\nヒント: ' + res.hint;
+          feedbackEl.textContent = msg;
+        }
+      } catch (e) { showToast('エラー: ' + e.message, 'error'); }
+    };
+    checkBtn.addEventListener('click', doCheck);
+    inputEl.addEventListener('keydown', e => { if (e.key === 'Enter') doCheck(); });
+    section.append(probEl);
+  });
+
+  return section;
+}
+
+// ── HDL エディタ UI ───────────────────────────────────────
+
+async function buildHdlSection(exercise, chapterId, lessonId) {
+  const section = h('div', { class: 'hdl-section' });
+  section.append(h('h2', {}, '💻 HDL 演習'));
+  if (exercise.description) section.append(h('p', { class: 'hdl-desc' }, exercise.description));
+
+  // deltasim バージョン確認
+  let simOk = true, simMsg = '';
+  try {
+    const s = await apiFetch('/api/deltasim/status');
+    simOk = s.available;
+    simMsg = s.version_message || '';
+  } catch (_) {}
+  if (!simOk) {
+    section.append(h('div', { class: 'hdl-version-warn' }, `⚠️ ${simMsg || 'deltasim が必要です'}`));
+  }
+
+  if (exercise.hints?.length) {
+    const details = h('details', { class: 'hdl-hints' });
+    details.append(
+      h('summary', {}, `💡 ヒント（${exercise.hints.length}件）`),
+      h('ul', {}, ...exercise.hints.map(hint => h('li', {}, hint)))
+    );
+    section.append(details);
+  }
+
+  const editor = h('textarea', { class: 'hdl-editor', spellcheck: 'false' });
+  editor.value = exercise.template || '';
+  section.append(editor);
+
+  const runBtn = h('button', { class: 'btn btn-primary' }, '▶ 実行して採点');
+  const resetBtn = h('button', { class: 'btn btn-secondary' }, '↺ リセット');
+  section.append(h('div', { class: 'hdl-controls' }, runBtn, resetBtn));
+  if (!simOk) runBtn.disabled = true;
+
+  const resultsEl = h('div', { class: 'hdl-results', style: 'display:none' });
+  section.append(resultsEl);
+
+  resetBtn.addEventListener('click', () => { editor.value = exercise.template || ''; resultsEl.style.display = 'none'; });
+  runBtn.addEventListener('click', async () => {
+    runBtn.disabled = true; runBtn.textContent = '⌛ 採点中...';
+    resultsEl.style.display = 'none';
+    try {
+      const res = await apiFetch(
+        `/api/chapters/${chapterId}/lessons/${lessonId}/hdl/grade`,
+        { method: 'POST', body: JSON.stringify({ code: editor.value }) }
+      );
+      _renderHdlResults(resultsEl, res);
+      resultsEl.style.display = '';
+    } catch (e) { showToast('エラー: ' + e.message, 'error'); }
+    finally { runBtn.disabled = !simOk; runBtn.textContent = '▶ 実行して採点'; }
+  });
+  return section;
+}
+
+function _renderHdlResults(container, res) {
+  container.innerHTML = '';
+  if (!res.simulator_available || !res.simulator_version_ok) {
+    container.append(h('div', { class: 'hdl-version-warn' },
+      `⚠️ ${res.version_message || res.user_message || 'deltasim が必要です'}`));
+    return;
+  }
+  const sc = res.status === 'PASS' ? 'pass' : res.status === 'FAIL' ? 'fail' : 'error';
+  const sl = res.status === 'PASS' ? '✅ 合格！' : res.status === 'FAIL' ? '❌ 不合格' : `⚠️ ${res.status}`;
+  container.append(h('div', { class: `hdl-overall ${sc}` }, sl));
+  for (const c of (res.cases || [])) {
+    const cEl = h('div', { class: 'hdl-case' });
+    const icon = c.status === 'PASS' ? '✓' : c.status === 'SKIP' ? '⏭' : '✗';
+    const cls = c.status === 'PASS' ? 'hdl-case-pass' : 'hdl-case-fail';
+    cEl.append(h('div', { class: 'hdl-case-header' },
+      h('span', { class: cls }, icon), h('span', {}, ` ケース: ${c.name} — ${c.status}`)));
+    for (const ck of (c.failed_checks || []))
+      cEl.append(h('div', { class: 'hdl-check-detail' },
+        `  ${ck.signal}@cycle${ck.cycle}: 期待=${ck.expected} / 実際=${ck.actual}`));
+    container.append(cEl);
+  }
+  if (res.errors?.length) {
+    const eb = h('div', { class: 'hdl-errors' });
+    for (const e of res.errors)
+      eb.append(h('div', { class: 'hdl-error-item' },
+        `[${e.severity}]${e.line ? ' 行' + e.line + ':' : ''} ${e.message}`));
+    container.append(eb);
+  }
+  if (res.lint_hints?.length) {
+    const lb = h('div', { class: 'hdl-lint-hints' });
+    lb.append(h('div', { class: 'hdl-lint-title' }, '📝 コードのヒント（採点に影響しません）'));
+    for (const hint of res.lint_hints) lb.append(h('pre', { class: 'hdl-lint-item' }, hint));
+    container.append(lb);
+  }
+}
 
 // ── クイズ UI ─────────────────────────────────
 

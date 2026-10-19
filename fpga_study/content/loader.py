@@ -126,6 +126,82 @@ def load_lesson(
     return meta
 
 
+def load_exercise(
+    chapter_id: str, lesson_id: str, data_root: Optional[Path] = None
+) -> Optional[dict]:
+    """演習定義（exercise.yaml）を返す。存在しなければ None。"""
+    root = data_root or _data_root()
+    ex_path = root / chapter_id / lesson_id / "exercise.yaml"
+    if not ex_path.exists():
+        return None
+    try:
+        data = _load_yaml(ex_path)
+        data["_dir"] = str(ex_path.parent)
+        return data
+    except Exception:
+        return None
+
+
+def check_exercise_answer(
+    chapter_id: str,
+    lesson_id: str,
+    problem_id: str,
+    answer,
+    data_root: Optional[Path] = None,
+) -> dict:
+    """
+    練習問題の回答を採点して結果を返す。
+    answer は str / int / float いずれでも可。
+    """
+    root = data_root or _data_root()
+    ex_path = root / chapter_id / lesson_id / "exercise.yaml"
+    if not ex_path.exists():
+        raise FileNotFoundError(f"演習ファイルが見つかりません: {ex_path}")
+
+    ex_data = _load_yaml(ex_path)
+    problems = ex_data.get("problems", [])
+    problem = next((p for p in problems if p["id"] == problem_id), None)
+    if problem is None:
+        raise ValueError(f"問題IDが見つかりません: {problem_id}")
+
+    def _normalize(v):
+        """数値として比較可能なら数値に、そうでなければ文字列として正規化する"""
+        try:
+            return int(str(v).strip())
+        except ValueError:
+            try:
+                return float(str(v).strip())
+            except ValueError:
+                return str(v).strip().lower()
+
+    correct = _normalize(answer) == _normalize(problem["answer"])
+
+    return {
+        "correct": correct,
+        "correct_answer": problem["answer"],
+        "hint": problem.get("hint") if not correct else None,
+        "wrong_hint": problem.get("wrong_hint") if not correct else None,
+    }
+
+
+def get_exercise_spec_path(
+    chapter_id: str, lesson_id: str, data_root: Optional[Path] = None
+) -> Optional[Path]:
+    """HDL 演習の spec.yaml パスを返す。存在しなければ None。"""
+    root = data_root or _data_root()
+    ex_path = root / chapter_id / lesson_id / "exercise.yaml"
+    if not ex_path.exists():
+        return None
+    try:
+        ex_data = _load_yaml(ex_path)
+        spec_file = ex_data.get("spec_file")
+        if spec_file:
+            return root / chapter_id / lesson_id / spec_file
+    except Exception:
+        pass
+    return None
+
+
 def check_quiz_answer(
     chapter_id: str,
     lesson_id: str,

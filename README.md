@@ -200,13 +200,23 @@ tests/              # ユニットテスト・APIテスト
 
 ## HDLシミュレーション（第6・7章）
 
-第6・7章のHDL演習には [deltasim](https://github.com/gt-ynakamatsu/deltasim) が必要です。
+第6・7章のHDL演習には **deltasim 0.2.0 以上** が必要です。
 
 ```bash
-pip install deltasim
+# v0.2.0 タグ公開後（推奨）:
+pip install 'git+https://github.com/gt-ynakamatsu/deltasim.git@v0.2.0'
+
+# TODO: v0.2.0 タグが公開されるまでは 748164e コミットを使用:
+pip install 'git+https://github.com/gt-ynakamatsu/deltasim.git@748164e'
 ```
 
-deltasim がインストールされていない場合、第1・2章の回路パズルは引き続き利用できます。
+deltasim がインストールされていない場合、第1〜5章の回路パズルは引き続き利用できます。
+
+### 開発オプション
+
+```bash
+fpga-study --show-drafts   # draft/review 状態のレッスンも表示
+```
 
 ---
 

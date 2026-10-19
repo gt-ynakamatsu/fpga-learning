@@ -26,6 +26,10 @@ def main() -> None:
     parser.add_argument(
         "--reload", action="store_true", help="開発用: コード変更時に自動リロード"
     )
+    parser.add_argument(
+        "--show-drafts", action="store_true",
+        help="開発用: draft/review 状態のレッスンも表示する"
+    )
     args = parser.parse_args()
 
     url = f"http://{args.host}:{args.port}"
@@ -45,7 +49,7 @@ def main() -> None:
         import uvicorn
         from fpga_study.server import create_app
 
-        app = create_app()
+        app = create_app(show_drafts=args.show_drafts)
         uvicorn.run(
             app,
             host=args.host,

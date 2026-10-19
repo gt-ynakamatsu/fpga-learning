@@ -144,8 +144,8 @@ img { max-width: 100%; }
 .lesson-content li { margin-bottom: .4em; }
 .lesson-content blockquote { border-left: 4px solid var(--accent); padding: .75rem 1rem; background: var(--accent-light); border-radius: 0 var(--radius) var(--radius) 0; margin: 1em 0; }
 .lesson-content code { background: var(--gray-100); padding: .1em .4em; border-radius: 4px; font-size: .9em; font-family: 'Consolas', 'Courier New', monospace; }
-.lesson-content pre { background: var(--gray-900); color: #e5e7eb; padding: 1.25rem; border-radius: var(--radius); overflow-x: auto; margin: 1em 0; }
-.lesson-content pre code { background: none; padding: 0; font-size: .875rem; color: inherit; }
+.lesson-content pre { background: var(--gray-900); color: #e5e7eb; padding: 1.25rem; border-radius: var(--radius); overflow-x: auto; margin: 1em 0; font-family: "DejaVu Sans Mono", Consolas, "Courier New", monospace; }
+.lesson-content pre code { background: none; padding: 0; font-size: .875rem; color: inherit; font-family: "DejaVu Sans Mono", Consolas, "Courier New", monospace; }
 .lesson-content table { border-collapse: collapse; width: 100%; margin: 1em 0; font-size: .9rem; }
 .lesson-content th, .lesson-content td { border: 1px solid var(--gray-300); padding: .6em .9em; text-align: center; }
 .lesson-content th { background: var(--gray-100); font-weight: 700; }
@@ -251,6 +251,48 @@ img { max-width: 100%; }
 .progress-pct { font-size: .85rem; color: var(--accent); font-weight: 700; }
 .progress-bar { height: 8px; background: var(--gray-200); border-radius: 4px; }
 .progress-bar-fill { height: 100%; border-radius: 4px; background: var(--accent); transition: width .5s ease; }
+
+/* ── 演習（練習問題・HDL） ── */
+.exercise-section { background: white; border: 1px solid var(--gray-200); border-radius: var(--radius); padding: 2rem; margin-bottom: 2rem; }
+.exercise-section h2 { font-size: 1.2rem; font-weight: 700; margin-bottom: 1.5rem; display: flex; align-items: center; gap: .5rem; }
+.exercise-problem { margin-bottom: 1.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--gray-100); }
+.exercise-problem:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+.exercise-question { font-weight: 600; margin-bottom: .75rem; line-height: 1.6; }
+.exercise-input-row { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; }
+.exercise-input { border: 2px solid var(--gray-200); border-radius: var(--radius); padding: .5rem .75rem; font-size: 1rem; min-width: 120px; }
+.exercise-input:focus { outline: none; border-color: var(--accent); }
+.exercise-feedback { margin-top: .75rem; padding: .75rem 1rem; border-radius: var(--radius); font-size: .9rem; }
+.exercise-feedback.correct { background: var(--success-light); border-left: 4px solid var(--success); color: var(--success); font-weight: 700; }
+.exercise-feedback.wrong { background: var(--danger-light); border-left: 4px solid var(--danger); }
+.exercise-hint { margin-top: .5rem; font-size: .85rem; color: var(--gray-500); }
+
+/* ── HDL エディタ ── */
+.hdl-section { background: white; border: 1px solid var(--gray-200); border-radius: var(--radius); padding: 2rem; margin-bottom: 2rem; }
+.hdl-section h2 { font-size: 1.2rem; font-weight: 700; margin-bottom: .5rem; }
+.hdl-desc { font-size: .9rem; color: var(--gray-500); margin-bottom: 1rem; }
+.hdl-hints { background: var(--accent-light); border-radius: var(--radius); padding: .75rem 1rem; margin-bottom: 1rem; }
+.hdl-hints summary { font-weight: 600; cursor: pointer; color: var(--accent); }
+.hdl-hints ul { margin: .5rem 0 0 1.25rem; }
+.hdl-hints li { font-size: .875rem; margin-bottom: .25rem; }
+.hdl-editor { width: 100%; min-height: 220px; font-family: "DejaVu Sans Mono", Consolas, "Courier New", monospace; font-size: .875rem; padding: 1rem; border: 2px solid var(--gray-300); border-radius: var(--radius); background: var(--gray-900); color: #e5e7eb; resize: vertical; line-height: 1.5; tab-size: 4; }
+.hdl-editor:focus { outline: none; border-color: var(--accent); }
+.hdl-controls { display: flex; gap: 1rem; align-items: center; margin: .75rem 0; flex-wrap: wrap; }
+.hdl-version-warn { padding: .6rem 1rem; background: var(--warn-light); border-radius: var(--radius); font-size: .85rem; color: var(--warn); }
+.hdl-results { margin-top: 1rem; }
+.hdl-overall { padding: 1rem; border-radius: var(--radius); font-weight: 700; margin-bottom: 1rem; }
+.hdl-overall.pass { background: var(--success-light); color: var(--success); }
+.hdl-overall.fail { background: var(--danger-light); color: var(--danger); }
+.hdl-overall.error { background: var(--warn-light); color: var(--warn); }
+.hdl-case { border: 1px solid var(--gray-200); border-radius: var(--radius); padding: .75rem; margin-bottom: .5rem; }
+.hdl-case-header { display: flex; align-items: center; gap: .5rem; font-weight: 600; font-size: .9rem; }
+.hdl-case-pass { color: var(--success); }
+.hdl-case-fail { color: var(--danger); }
+.hdl-check-detail { font-size: .8rem; color: var(--gray-500); margin-top: .3rem; margin-left: 1.5rem; }
+.hdl-errors { margin-top: .5rem; }
+.hdl-error-item { font-size: .85rem; padding: .4rem .6rem; background: var(--danger-light); border-radius: 4px; margin-bottom: .25rem; }
+.hdl-lint-hints { background: var(--warn-light); border-radius: var(--radius); padding: .75rem; margin-top: .75rem; }
+.hdl-lint-title { font-weight: 700; font-size: .85rem; color: var(--warn); margin-bottom: .3rem; }
+.hdl-lint-item { font-size: .8rem; white-space: pre-wrap; }
 
 /* ── 回路パズル ── */
 .puzzle-section { background: white; border: 1px solid var(--gray-200); border-radius: var(--radius); overflow: hidden; margin-top: 2rem; }

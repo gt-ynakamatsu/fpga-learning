@@ -349,6 +349,12 @@ class TestSpecZeroWarnings:
         answer = DATA_ROOT / chapter / lesson / "answer.sv"
         result = run_deltasim_test(answer, spec)
 
+        # warnings キーが存在すること（748164e 以降は常に present）
+        assert "warnings" in result, (
+            f"[warnings キーが存在しません] {chapter}/{lesson}\n"
+            f"deltasim 748164e 以降を使用しているか確認してください。"
+        )
+
         warnings = result.get("warnings") or []
         warning_codes = [w.get("code", "") for w in warnings]
 
