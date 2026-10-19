@@ -1,9 +1,7 @@
 # wrong_codes/manifest.yaml — Ch06 Lesson03 (D-FF)
 # expected フィールド:
 #   FAIL                     : spec で確実に FAIL する
-#   PASS_KNOWN_LIMITATION     : deltasim サブサイクル対応後に FAIL になる予定
-#   RULE_VIOLATION_UNDETECTABLE: スタイル違反だが動作上は正しく、サブサイクル対応後も PASS のまま
-#   FAIL_DUE_TO_DELTASIM_BUG  : deltasim バグで現在 FAIL（バグ修正後は PASS になる予定）
+#   PASS_KNOWN_LIMITATION     : 自動テストでは区別できない（コーディングルール違反）
 
 wrong_codes:
   - file: no_reset.sv
@@ -15,33 +13,29 @@ wrong_codes:
     reason: "D→Q1→Q の 2 段パイプライン。same_cycle_capture（at:4 check q=1）で FAIL する"
 
   - file: reg_output.sv
-    expected: FAIL_DUE_TO_DELTASIM_BUG
+    expected: PASS_KNOWN_LIMITATION
     reason: >
-      always_ff 内でのブロッキング代入 = を使用。
-      deltasim バグ（クロック付きブロックの = が q を更新しない）により現在 FAIL する。
-      deltasim がバグを修正した時点では PASS になる可能性がある。
-      バグ修正後に PASS になったら、このエントリを RULE_VIOLATION_UNDETECTABLE または
-      PASS_KNOWN_LIMITATION に変更すること（仕様考案係と相談）。
+      always_ff 内でブロッキング代入 = を使用。deltasim バグが修正されたため現在は PASS する。
+      FF が 1 段だけなので、整数サイクル境界での観測値が正しいコードと同一になる。
+      コーディングルール違反（always_ff 内では <= を使うべき）として扱う。
 
   - file: combinational.sv
-    expected: PASS_KNOWN_LIMITATION
+    expected: FAIL
     reason: >
       assign q = rst?0:d は組み合わせ回路（FF なし）。
-      整数サイクル検査ではクロックエッジ境界で DFF と同一の観測値になる。
-      deltasim がサブサイクル刺激に対応した時点で FAIL に変更すること。
+      §15 hold_between_edges ケース（offset_ns 使用）で、D がエッジ後に変わっても
+      Q が変化することが FAIL として検出される。
 
   - file: async_reset.sv
-    expected: PASS_KNOWN_LIMITATION
+    expected: FAIL
     reason: >
       always_ff @(posedge clk or posedge rst) は非同期リセット。
-      rst の変化がクロックエッジと同時のため、整数サイクル検査では区別できない。
-      deltasim がサブサイクル刺激に対応した時点で FAIL に変更すること。
+      §15 sync_reset_waits_for_edge ケースで、サイクル途中の rst 変化が
+      Q に即座に反映されることが FAIL として検出される。
 
   - file: registered_comb.sv
-    expected: RULE_VIOLATION_UNDETECTABLE
+    expected: PASS_KNOWN_LIMITATION
     reason: >
       assign d_comb = rst?0:d; always_ff @(posedge clk) q <= d_comb; は
-      「always_ff 内で if(rst) を使う」というコーディングルールに違反しているが、
-      機能的には正しいコードと完全に等価である。
-      deltasim がサブサイクル刺激に対応した後も PASS のままであり、
-      自動テストでは検出できない（コードレビューで指摘する必要がある）。
+      機能的には正しいコードと同一。§15 ケースでも PASS のまま。
+      「always_ff 内で if(rst) を使う」コーディングルール違反として扱う。

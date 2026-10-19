@@ -1,9 +1,7 @@
 # wrong_codes/manifest.yaml — Ch06 Lesson02 (2:1 MUX)
 # expected フィールド:
 #   FAIL                     : spec で確実に FAIL する
-#   PASS_KNOWN_LIMITATION     : deltasim サブサイクル対応後に FAIL になる予定
-#   RULE_VIOLATION_UNDETECTABLE: スタイル違反だが動作上は正しく、サブサイクル対応後も PASS のまま
-#   FAIL_DUE_TO_DELTASIM_BUG  : deltasim バグで現在 FAIL（バグ修正後は PASS になる予定）
+#   PASS_KNOWN_LIMITATION     : 自動テストでは区別できない（コーディングルール違反 or §15対応待ち）
 
 wrong_codes:
   - file: sel_xor_a.sv
@@ -18,8 +16,10 @@ wrong_codes:
     expected: FAIL
     reason: "else ブランチなし → ラッチ生成。latch_detection ケースで FAIL する"
 
-  - file: mux_via_wire.sv
+  - file: mux_reg1.sv
     expected: PASS_KNOWN_LIMITATION
     reason: >
-      always_comb で中間変数 y_tmp を経由するが、機能的には正しいコードと同一。
-      整数サイクル検査でも、サブサイクル対応後も PASS のまま（実装として問題ない）。
+      出力を 1 段 FF に通す（always_ff @(posedge clk) if(sel) y<=b; else y<=a;）。
+      at:N の同サイクルチェックでは入力が edge 前に確定しているため、
+      FF 経由でも正しい MUX と同じ値が取れる。
+      コーディングルール違反（組み合わせ MUX には FF 不要）として扱う。

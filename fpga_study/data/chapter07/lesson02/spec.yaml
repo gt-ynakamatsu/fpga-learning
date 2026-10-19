@@ -1,46 +1,41 @@
 version: 1
 top: counter4
-clock:
-  signal: clk
-  period_ns: 10
-reset:
-  signal: rst
-  active_low: false
-  duration_cycles: 3
-sim:
-  cycles: 30
-  seed: 42
+clock: {signal: clk, period_ns: 10}
+reset: {signal: rst, active_low: false, duration_cycles: 3}
+sim: {cycles: 30}
+seed: 42
 cases:
   - name: "counts_up"
     expected:
-      - at: 4
-        check: {count: 1}
-      - at: 5
-        check: {count: 2}
-      - at: 6
-        check: {count: 3}
-      - at: 7
-        check: {count: 4}
+      - {at: 4, check: {count: 1}}
+      - {at: 5, check: {count: 2}}
+      - {at: 6, check: {count: 3}}
+      - {at: 7, check: {count: 4}}
+
   - name: "overflow_15_to_0"
     expected:
-      - at: 18
-        check: {count: 15}
-      - at: 19
-        check: {count: 0}
-      - at: 20
-        check: {count: 1}
+      - {at: 18, check: {count: 15}}
+      - {at: 19, check: {count: 0}}
+      - {at: 20, check: {count: 1}}
+
   - name: "sync_reset_during_count"
     inputs:
-      - at: 8
-        set: {rst: 1}
-      - at: 9
-        set: {rst: 0}
+      - {at: 8, set: {rst: 1}}
+      - {at: 9, set: {rst: 0}}
     expected:
-      - at: 8
-        check: {count: 0}
-      - at: 9
-        check: {count: 1}
+      - {at: 8, check: {count: 0}}
+      - {at: 9, check: {count: 1}}
+
+  - name: "sync_reset_waits_for_edge"
+    inputs:
+      - {at: 5, offset_ns: 3, set: {rst: 1}}
+      - {at: 6, offset_ns: 2, set: {rst: 0}}
+    expected:
+      - {at: 5, check: {count: 2}}
+      - {at: 5, offset_ns: 3, check: {count: 2}}
+      - {at: 6, check: {count: 0}}
+      - {at: 7, check: {count: 1}}
+
   - name: "reset_to_zero"
     expected:
-      - at: 2
-        check: {count: 0}
+      - {at: 2, check: {count: 0}}

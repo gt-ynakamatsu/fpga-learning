@@ -473,6 +473,74 @@ class TestParserSchemaVersion:
 # ── 堅牢性テスト ──────────────────────────────────────────────────────
 
 
+class TestParserWarnings:
+    """warnings フィールドのパース（§15.12 W_UNKNOWN_KEY など）"""
+
+    def test_warnings_absent_treated_as_empty(self):
+        """warnings フィールドが absent (None) の場合は空リストとして扱う"""
+        data = {
+            "schema_version": "2", "status": "PASS",
+            "cases": [], "checks": [], "errors": [],
+            # warnings フィールドなし
+        }
+        import json
+        result = _parse_deltasim_result(json.dumps(data))
+        assert result.warnings == []
+
+    def test_warnings_null_treated_as_empty(self):
+        """warnings が null の場合も空リストとして扱う"""
+        import json
+        data = {
+            "schema_version": "2", "status": "PASS",
+            "cases": [], "checks": [], "errors": [],
+            "warnings": None,
+        }
+        result = _parse_deltasim_result(json.dumps(data))
+        assert result.warnings == []
+
+    def test_warnings_empty_list(self):
+        """warnings が空リストの場合"""
+        import json
+        data = {
+            "schema_version": "2", "status": "PASS",
+            "cases": [], "checks": [], "errors": [],
+            "warnings": [],
+        }
+        result = _parse_deltasim_result(json.dumps(data))
+        assert result.warnings == []
+
+    def test_w_unknown_key_in_warnings(self):
+        """W_UNKNOWN_KEY ワーニングがパースされユーザーメッセージに含まれる"""
+        import json
+        data = {
+            "schema_version": "2", "status": "PASS",
+            "cases": [], "checks": [], "errors": [],
+            "warnings": [
+                {"code": "W_UNKNOWN_KEY", "message": "stimulus[0]: 不明なキー 'foo' は無視されます"}
+            ],
+        }
+        result = _parse_deltasim_result(json.dumps(data))
+        assert len(result.warnings) == 1
+        assert result.warnings[0].code == "W_UNKNOWN_KEY"
+        assert "foo" in result.warnings[0].message
+        # ユーザーメッセージにワーニングが含まれる
+        assert "不明なキー" in result.user_message or "W_UNKNOWN_KEY" in result.user_message
+
+    def test_unknown_warning_code_displayed(self):
+        """未知のワーニングコードも表示される（非致命的）"""
+        import json
+        data = {
+            "schema_version": "2", "status": "PASS",
+            "cases": [], "checks": [], "errors": [],
+            "warnings": [
+                {"code": "W_FUTURE_CODE", "message": "将来追加されるワーニング"}
+            ],
+        }
+        result = _parse_deltasim_result(json.dumps(data))
+        assert result.success is True  # PASS のまま
+        assert len(result.warnings) == 1
+
+
 class TestParserRobustness:
     def test_empty_input(self):
         result = _parse_deltasim_result("")

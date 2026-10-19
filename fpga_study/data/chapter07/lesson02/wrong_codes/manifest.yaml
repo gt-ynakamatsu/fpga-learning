@@ -1,8 +1,7 @@
 # wrong_codes/manifest.yaml — Ch07 Lesson02 (counter4)
 # expected フィールド:
-#   FAIL                  : deltasim で FAIL することが確認済み
-#   PASS_KNOWN_LIMITATION : 整数サイクル制約により現在 PASS する既知の制約
-#                           deltasim がサブサイクル刺激に対応次第 FAIL に変更する
+#   FAIL                     : spec で確実に FAIL する
+#   PASS_KNOWN_LIMITATION     : 自動テストでは区別できない（コーディングルール違反）
 
 wrong_codes:
   - file: saturate_at_15.sv
@@ -18,9 +17,8 @@ wrong_codes:
     reason: "rst チェックなし。counts_up ケース（初期 count=1 期待）で FAIL"
 
   - file: async_reset.sv
-    expected: PASS_KNOWN_LIMITATION
+    expected: FAIL
     reason: >
-      always_ff @(posedge clk or posedge rst) は非同期リセットだが、
-      deltasim の整数サイクル検査では rst の変化がクロックエッジと同時のため
-      同期リセットと区別できない。
-      deltasim がサブサイクル刺激に対応した時点で FAIL に変更すること。
+      always_ff @(posedge clk or posedge rst) は非同期リセット。
+      §15 sync_reset_waits_for_edge ケースで、サイクル途中の rst 変化が
+      count に即座に反映されることが FAIL として検出される。

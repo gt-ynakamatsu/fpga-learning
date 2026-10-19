@@ -1,15 +1,15 @@
 """
 deltasim CLI 統合テスト（実機確認）
 
-第6・7章の answer.sv が deltasim test で実際に PASS することを確認する。
-また wrong_codes/ の各ファイルが manifest.yaml で指定した期待値通りに動作することを確認する。
+要件:
+  - deltasim b482527 以降（§15 offset_ns サポート）が必要
+  - 古い deltasim は §15 を無視してテストを誤った結果にする可能性があるため
+    バージョンガードで検出・SKIP する（PASS_SILENT は禁止）
 
-  expected: FAIL                → deltasim で FAIL/ERROR になることをアサート
-  expected: PASS_KNOWN_LIMITATION → 現在 PASS することをアサート
-       ↑ deltasim がサブサイクル刺激に対応した時点でこのアサートが壊れます。
-         壊れたら manifest.yaml を FAIL に書き換え、FAILを確認するテストに更新してください。
-
-deltasim がインストールされていない環境では自動的にスキップされる。
+expected カテゴリ:
+  FAIL                   → FAIL/ERROR であることをアサート
+  PASS_KNOWN_LIMITATION  → 現在 PASS であることをアサート（コーディングルール違反 or 区別不可）
+                           PASS でなくなったら → spec または deltasim の変化。manifest.yaml を更新。
 """
 
 from __future__ import annotations
@@ -27,9 +27,65 @@ DATA_ROOT = Path(__file__).parent.parent / "fpga_study" / "data"
 
 DELTASIM_AVAILABLE = shutil.which("deltasim") is not None
 
+
+# ── §15 (offset_ns) サポートチェック ─────────────────────────────────
+
+
+def _probe_offset_ns_support() -> bool:
+    """
+    deltasim が §15 offset_ns を正しく処理するかプローブする。
+    古い deltasim は offset_ns を無視して PASS を返す（誤検知の原因）。
+    → at:2 offset_ns:6 で D=1 を設定し、at:2 check で Q=0 が期待される。
+    Q=1 なら offset_ns は無視されている（§15 未対応）。
+    """
+    if not DELTASIM_AVAILABLE:
+        return False
+    with tempfile.TemporaryDirectory() as tmp:
+        sv = Path(tmp) / "probe.sv"
+        sv.write_text(
+            "module probe_dff(input logic clk, input logic d, output logic q);\n"
+            "    always_ff @(posedge clk) q <= d;\n"
+            "endmodule\n"
+        )
+        spec = Path(tmp) / "probe.yaml"
+        spec.write_text(
+            "version: 1\ntop: probe_dff\n"
+            "clock: {signal: clk, period_ns: 10}\nsim: {cycles: 5}\n"
+            "cases:\n"
+            "  - name: offset_probe\n"
+            "    inputs:\n"
+            "      - {at: 2, offset_ns: 6, set: {d: 1}}\n"
+            "    expected:\n"
+            "      - {at: 2, check: {q: 0}}\n"  # §15 対応なら q=0（edgeではまだd=0）
+        )
+        json_out = Path(tmp) / "r.json"
+        result = subprocess.run(
+            ["deltasim", "test", str(sv), "--spec", str(spec), "--json", str(json_out)],
+            capture_output=True, text=True, timeout=10,
+        )
+        if not json_out.exists():
+            return False
+        data = json.loads(json_out.read_text())
+        # PASS = offset_ns が正しく動作している（D=1 設定はエッジ後なので q=0）
+        return data.get("status") == "PASS"
+
+
+OFFSET_NS_SUPPORTED = _probe_offset_ns_support()
+
 skip_if_no_deltasim = pytest.mark.skipif(
     not DELTASIM_AVAILABLE,
     reason="deltasim がインストールされていません（pip install deltasim）",
+)
+
+require_offset_ns = pytest.mark.skipif(
+    not OFFSET_NS_SUPPORTED,
+    reason=(
+        "⚠️ この deltasim は §15 (offset_ns) に対応していません。"
+        " b482527 以降をインストールしてください: "
+        "pip install git+https://github.com/gt-ynakamatsu/deltasim.git@b482527"
+        " offset_ns が無効な旧バージョンでは誤った PASS になる可能性があるため"
+        " このテストは SKIP されます（silent PASS 禁止）。"
+    ),
 )
 
 
@@ -72,19 +128,15 @@ class TestChapter06Answers:
     """第6章の正解例がすべて PASS することを確認"""
 
     def test_lesson01_and_gate_passes(self):
-        """ANDゲート (assign) の正解例が PASS"""
         answer = DATA_ROOT / "chapter06" / "lesson01" / "answer.sv"
         spec = DATA_ROOT / "chapter06" / "lesson01" / "spec.yaml"
         assert answer.exists()
         assert spec.exists()
         result = run_deltasim_test(answer, spec)
         assert result["schema_version"] == "2"
-        assert result["status"] == "PASS", (
-            f"ANDゲートの正解例が PASS しません。status={result['status']}"
-        )
+        assert result["status"] == "PASS"
 
     def test_lesson02_mux_passes(self):
-        """2:1 MUX (always_comb) の正解例が PASS"""
         answer = DATA_ROOT / "chapter06" / "lesson02" / "answer.sv"
         spec = DATA_ROOT / "chapter06" / "lesson02" / "spec.yaml"
         assert answer.exists()
@@ -93,7 +145,6 @@ class TestChapter06Answers:
         assert result["status"] == "PASS"
 
     def test_lesson03_dff_passes(self):
-        """Dフリップフロップ (always_ff) の正解例が PASS"""
         answer = DATA_ROOT / "chapter06" / "lesson03" / "answer.sv"
         spec = DATA_ROOT / "chapter06" / "lesson03" / "spec.yaml"
         assert answer.exists()
@@ -103,7 +154,6 @@ class TestChapter06Answers:
         assert "cases" in result
 
     def test_lesson03_dff_result_structure(self):
-        """結果JSON が schema_version 2 の構造を持つことを確認"""
         answer = DATA_ROOT / "chapter06" / "lesson03" / "answer.sv"
         spec = DATA_ROOT / "chapter06" / "lesson03" / "spec.yaml"
         result = run_deltasim_test(answer, spec)
@@ -118,12 +168,11 @@ class TestChapter06Answers:
             assert "checks" in case
 
     def test_wrong_code_gives_fail(self):
-        """y=0固定の誤りコードが FAIL になることを確認"""
         spec = DATA_ROOT / "chapter06" / "lesson01" / "spec.yaml"
         with tempfile.TemporaryDirectory() as tmp:
             wrong_sv = Path(tmp) / "wrong.sv"
             wrong_sv.write_text(
-                "module and_gate(input logic clk, input logic a, input logic b, output logic y);\n"
+                "module and_gate(input logic a, b, output logic y);\n"
                 "    assign y = 1'b0;\n"
                 "endmodule\n"
             )
@@ -142,7 +191,6 @@ class TestChapter07Answers:
     """第7章の正解例がすべて PASS することを確認"""
 
     def test_lesson02_counter_passes(self):
-        """4ビットカウンタの正解例が PASS"""
         answer = DATA_ROOT / "chapter07" / "lesson02" / "answer.sv"
         spec = DATA_ROOT / "chapter07" / "lesson02" / "spec.yaml"
         assert answer.exists()
@@ -151,7 +199,6 @@ class TestChapter07Answers:
         assert result["status"] == "PASS"
 
     def test_lesson02_counter_vcd_output(self):
-        """カウンタのシミュレーションで VCD ファイルが出力されることを確認"""
         answer = DATA_ROOT / "chapter07" / "lesson02" / "answer.sv"
         spec = DATA_ROOT / "chapter07" / "lesson02" / "spec.yaml"
         with tempfile.TemporaryDirectory() as tmp:
@@ -166,6 +213,28 @@ class TestChapter07Answers:
             vcd_text = vcd_out.read_text()
             assert "$timescale" in vcd_text
             assert "$var" in vcd_text
+
+
+# ── §15 offset_ns バージョンガードテスト ────────────────────────────
+
+
+@skip_if_no_deltasim
+class TestOffsetNsSupport:
+    """§15 サポートの確認（このテストが FAIL なら古い deltasim を使用中）"""
+
+    def test_offset_ns_is_supported(self):
+        """
+        offset_ns が正しく動作することを確認する。
+        FAIL した場合: deltasim b482527 以降をインストールしてください。
+        pip install git+https://github.com/gt-ynakamatsu/deltasim.git@b482527
+        """
+        assert OFFSET_NS_SUPPORTED, (
+            "⚠️ §15 (offset_ns) が未対応の deltasim が使われています。\n"
+            "b482527 以降をインストールしてください:\n"
+            "pip install 'git+https://github.com/gt-ynakamatsu/deltasim.git@b482527'\n"
+            "古いバージョンでは wrong_codes の PASS_KNOWN_LIMITATION チェックが"
+            "誤った PASS を返す可能性があります。"
+        )
 
 
 # ── manifest.yaml ベースの wrong_codes テスト ─────────────────────────
@@ -192,6 +261,9 @@ def _collect_wrong_code_params() -> list[tuple[Path, Path, dict]]:
 
 _WRONG_CODE_PARAMS = _collect_wrong_code_params()
 
+# §15 が必要な FAIL エントリ（combinational.sv, async_reset.sv）
+_OFFSET_NS_REQUIRED_FILES = {"combinational.sv", "async_reset.sv"}
+
 
 @skip_if_no_deltasim
 class TestWrongCodesManifest:
@@ -199,8 +271,8 @@ class TestWrongCodesManifest:
     manifest.yaml で定義された wrong_codes をすべて検証する。
 
     FAIL                  → FAIL/ERROR になることをアサート
-    PASS_KNOWN_LIMITATION → 現在 PASS することをアサート
-                            ※ PASS でなくなったらdeltasimがサブサイクル対応した合図
+    PASS_KNOWN_LIMITATION → 現在 PASS であることをアサート
+                            PASS でなくなったら: manifest.yaml を更新してください
     """
 
     @pytest.mark.parametrize(
@@ -212,6 +284,14 @@ class TestWrongCodesManifest:
         filename = entry["file"]
         expected = entry["expected"]
         reason = entry.get("reason", "")
+
+        # §15 が必要なファイルは offset_ns 非対応なら SKIP
+        if filename in _OFFSET_NS_REQUIRED_FILES and not OFFSET_NS_SUPPORTED:
+            pytest.skip(
+                f"{filename} は §15 (offset_ns) を使って検出するため、"
+                f"古い deltasim では silent PASS になる可能性があります。"
+                f"b482527 以降の deltasim を使用してください。"
+            )
 
         result = run_deltasim_test(wrong_sv, spec)
         actual_status = result["status"]
@@ -225,30 +305,15 @@ class TestWrongCodesManifest:
             )
 
         elif expected == "PASS_KNOWN_LIMITATION":
+            # コーディングルール違反 or 区別不可の既知ケース
             assert actual_status == "PASS", (
-                f"[⚠️ 既知制約の変化を検出] {filename} が {actual_status} になりました。\n"
-                f"deltasim がサブサイクル刺激に対応した可能性があります。\n"
-                f"対応: manifest.yaml の expected を FAIL に変更し、README.md を更新してください。\n"
+                f"[⚠️ PASS_KNOWN_LIMITATION が PASS でなくなりました] {filename}: {actual_status}\n"
+                f"考えられる原因:\n"
+                f"  - spec にこのファイルを検出できる新しいケースが追加された\n"
+                f"  - deltasim の動作が変化した\n"
+                f"対応: manifest.yaml の expected を FAIL に変更するか、"
+                f"spec/README.md を更新してください。\n"
                 f"ファイル: {wrong_sv}\n"
-                f"理由: {reason}"
-            )
-
-        elif expected == "RULE_VIOLATION_UNDETECTABLE":
-            # スタイル違反だが機能的に正しい。deltasim 改善後も PASS のまま。
-            assert actual_status == "PASS", (
-                f"[⚠️ RULE_VIOLATION_UNDETECTABLE が PASS でなくなりました] {filename}: {actual_status}\n"
-                f"これはスタイル違反のため機能的には正しいはずです。\n"
-                f"spec の変更や deltasim の挙動変化を確認してください（サブサイクル対応では壊れないはず）。\n"
-                f"理由: {reason}"
-            )
-
-        elif expected == "FAIL_DUE_TO_DELTASIM_BUG":
-            # deltasim バグにより現在 FAIL する。バグ修正後は PASS になる予定。
-            assert actual_status in ("FAIL", "ERROR"), (
-                f"[⚠️ FAIL_DUE_TO_DELTASIM_BUG が PASS になりました] {filename}: {actual_status}\n"
-                f"deltasim のバグが修正された可能性があります。\n"
-                f"対応: manifest.yaml のエントリを RULE_VIOLATION_UNDETECTABLE または\n"
-                f"PASS_KNOWN_LIMITATION に変更し、仕様考案係に確認してください。\n"
                 f"理由: {reason}"
             )
 

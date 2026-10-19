@@ -99,6 +99,13 @@ SUPPORTED_SCHEMA_MAJOR = "2"
 
 
 @dataclass
+class WarningDetail:
+    """結果JSON の warnings[] の要素 (§15.12 W_UNKNOWN_KEY など)"""
+    code: str
+    message: str
+
+
+@dataclass
 class CheckResult:
     """1件のチェック結果 (checks[] の要素)"""
     name: str
@@ -145,6 +152,7 @@ class SimulationResult:
     cases: list[CaseResult] = field(default_factory=list)
     checks: list[CheckResult] = field(default_factory=list)
     errors: list[ErrorDetail] = field(default_factory=list)
+    warnings: list[WarningDetail] = field(default_factory=list)
     summary_elapsed_ms: Optional[float] = None   # summary.elapsed_ms（推奨）
     raw_output: str = ""
     user_message: str = ""
@@ -358,7 +366,11 @@ def _parse_deltasim_result(raw: str) -> SimulationResult:
 
     errors: list[ErrorDetail] = [_parse_error(e) for e in data.get("errors", [])]
 
-    user_message = _build_user_message(success, status, cases, checks, errors)
+    # §15.12: warnings は常に存在する可能性がある（None または空リスト）
+    raw_warnings = data.get("warnings") or []
+    warnings: list[WarningDetail] = [_parse_warning(w) for w in raw_warnings]
+
+    user_message = _build_user_message(success, status, cases, checks, errors, warnings)
 
     return SimulationResult(
         success=success,
@@ -366,6 +378,7 @@ def _parse_deltasim_result(raw: str) -> SimulationResult:
         cases=cases,
         checks=checks,
         errors=errors,
+        warnings=warnings,
         summary_elapsed_ms=summary_elapsed_ms,
         raw_output=raw,
         user_message=user_message,
@@ -394,6 +407,13 @@ def _parse_check(c: dict) -> CheckResult:
         expected=c.get("expected", ""),
         actual=c.get("actual", ""),
         message=c.get("message"),
+    )
+
+
+def _parse_warning(w: dict) -> WarningDetail:
+    return WarningDetail(
+        code=w.get("code", ""),
+        message=w.get("message", ""),
     )
 
 
@@ -429,9 +449,18 @@ def _build_user_message(
     cases: list[CaseResult],
     checks: list[CheckResult],
     errors: list[ErrorDetail],
+    warnings: Optional[list[WarningDetail]] = None,
 ) -> str:
     if status == "SKIP":
         return "⏭️ テストはスキップされました。"
+
+    # §15.12: W_UNKNOWN_KEY などのワーニングを表示（非致命的）
+    warning_lines: list[str] = []
+    for w in (warnings or []):
+        if w.code == "W_UNKNOWN_KEY":
+            warning_lines.append(f"⚠️ 仕様YAML に不明なキーがあります（無視されます）: {w.message}")
+        else:
+            warning_lines.append(f"⚠️ [{w.code}] {w.message}")
 
     # E_NO_CASE: --case フィルタがどのケースにも一致しなかった
     for e in errors:
@@ -447,8 +476,10 @@ def _build_user_message(
         case_summary = ""
         if cases:
             case_summary = f" ({len(cases)}ケース全て通過)"
-        total = len(checks) if not cases else sum(len(c.checks) for c in cases)
-        return f"✅ テスト合格！{case_summary}"
+        msg = f"✅ テスト合格！{case_summary}"
+        if warning_lines:
+            msg = "\n".join(warning_lines) + "\n" + msg
+        return msg
 
     lines: list[str] = []
 
@@ -487,6 +518,8 @@ def _build_user_message(
     else:
         lines.append(f"❌ シミュレーションに失敗しました (status={status})。")
 
+    if warning_lines:
+        lines = warning_lines + lines
     return "\n".join(lines)
 
 
