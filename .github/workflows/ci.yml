@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  test:
+    name: テスト (${{ matrix.os }} / Python ${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Python のセットアップ
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: 依存パッケージのインストール
+        run: pip install ".[dev]"
+
+      - name: テストの実行
+        run: pytest -v --tb=short
+
+      - name: カバレッジレポート
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
+        run: pytest --cov=fpga_study --cov-report=term-missing --cov-fail-under=70

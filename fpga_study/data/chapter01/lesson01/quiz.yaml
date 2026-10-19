@@ -1,0 +1,41 @@
+status: draft
+questions:
+  - id: q1
+    question: "1ビットが表せる値の種類はいくつですか？"
+    options:
+      - "1通り（0のみ）"
+      - "2通り（0と1）"
+      - "8通り"
+      - "256通り"
+    answer: 1
+    explanation: "1ビットは「0か1か」の2択なので、2通りの値を表せます。スイッチ1個がOFFかONか、と同じです。"
+
+  - id: q2
+    question: "4ビットで表せる情報の種類は何通りですか？"
+    options:
+      - "4通り"
+      - "8通り"
+      - "16通り"
+      - "32通り"
+    answer: 2
+    explanation: "Nビットで2のN乗通りを表せます。4ビットなら 2⁴ = 16通りです。"
+
+  - id: q3
+    question: "コンピュータが0と1だけを使う主な理由はどれですか？"
+    options:
+      - "計算が速いから"
+      - "記憶できる量が多いから"
+      - "スイッチのON/OFFで確実に動作できるから"
+      - "人間にとってわかりやすいから"
+    answer: 2
+    explanation: "電気が流れている（ON=1）か流れていない（OFF=0）かという2択にすることで、曖昧さなく確実に動作できます。"
+
+  - id: q4
+    question: "「bit（ビット）」の正式な意味に最も近いのはどれですか？"
+    options:
+      - "Binary Integrated Technology"
+      - "Basic Input Terminal"
+      - "Binary digIT（2進数の1桁）"
+      - "Byte Indicator Type"
+    answer: 2
+    explanation: "bit は「Binary digIT（2進数の1桁）」の略です。コンピュータの情報の最小単位です。"
