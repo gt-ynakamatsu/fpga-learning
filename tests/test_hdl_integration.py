@@ -428,6 +428,152 @@ class TestMultiPortDeclaration:
 
 
 @require_v020
+class TestWhileLoopDetection:
+    """while loop → E_LOOP_LIMIT → 回路が終わらない案内 (v0.2.1+)"""
+
+    def test_while_loop_gives_loop_limit_code(self):
+        """while ループが上限を超えたとき E_LOOP_LIMIT → 初心者向けメッセージ
+        
+        実際に返ってきたコード: E_LOOP_LIMIT
+        「E_LOOP_LIMIT: 0ns の while loop が 1000000 回を超えました」
+        """
+        from fpga_study.simulator import _parse_deltasim_result
+        with tempfile.TemporaryDirectory() as tmp:
+            sv = Path(tmp) / "wloop.sv"
+            sv.write_text(
+                "module wloop(input logic clk, input logic a, output logic [31:0] y);\n"
+                "    logic [31:0] count;\n"
+                "    always_comb begin\n"
+                "        count = 0;\n"
+                "        while (count < 32'hFFFFFFFF) begin\n"
+                "            count = count + 1;\n"
+                "        end\n"
+                "        y = count & {32{a}};\n"
+                "    end\n"
+                "endmodule\n"
+            )
+            spec = Path(tmp) / "spec.yaml"
+            spec.write_text(
+                "version: 1\ntop: wloop\n"
+                "clock: {signal: clk, period_ns: 10}\nsim: {cycles: 5}\n"
+                "cases:\n  - name: test\n    expected:\n      - {at: 2, check: {y: 0}}\n"
+            )
+            import subprocess as sp
+            json_out = Path(tmp) / "r.json"
+            proc = sp.run(
+                ["deltasim", "test", str(sv), "--spec", str(spec), "--json", str(json_out)],
+                capture_output=True, text=True, timeout=30,
+            )
+            raw = json_out.read_text() if json_out.exists() else ""
+
+        result = _parse_deltasim_result(raw, proc.stderr or "")
+
+        all_codes = {e.code for e in result.errors}
+        for c in result.cases:
+            all_codes.update(e.code for e in c.case_errors)
+
+        assert "E_LOOP_LIMIT" in all_codes, (
+            f"E_LOOP_LIMIT が検出されませんでした。"
+            f"codes={all_codes}, status={result.status}"
+        )
+        assert "回路が終わらない" in result.user_message, (
+            f"初心者向けメッセージがありません: {result.user_message}"
+        )
+
+
+@require_v020
+class TestSyntaxErrorDisplay:
+    """文法エラー時の初心者向け表示と詳細折りたたみを確認"""
+
+    def test_syntax_error_gives_friendly_message(self):
+        """文法エラー: cases は空、errors[] にエラー。ファイル名は design.sv のみ"""
+        # サーバー経由でテスト（E2E 相当）
+        from fastapi.testclient import TestClient
+        import tempfile
+        from fpga_study.server import create_app
+        db = Path(tempfile.mktemp(suffix=".db"))
+        from fpga_study.progress import init_db
+        init_db(db)
+        client = TestClient(create_app(db_path=db, show_drafts=True))
+
+        bad_code = (
+            "module and_gate(\n"
+            "    input  logic a,\n"
+            "    input  logic b,\n"
+            "    output logic y\n"
+            ");\n"
+            "    assign y = a &  ;  // 文法エラー\n"
+            "endmodule\n"
+        )
+        res = client.post(
+            "/api/chapters/chapter06/lessons/lesson01/hdl/grade",
+            json={"code": bad_code},
+        )
+        assert res.status_code == 200
+        data = res.json()
+
+        assert data["status"] in ("ERROR", "FAIL"), f"expected ERROR got {data['status']}"
+        # cases は空（文法エラーは top-level errors[] に入る）
+        # errors が存在すること
+        assert len(data.get("errors", [])) > 0, "errors が空です"
+        # ファイル名が design.sv のみ（フルパスでない）
+        for err in data.get("errors", []):
+            if err.get("file"):
+                assert err["file"] == "design.sv" or "/" not in err["file"], (
+                    f"一時ファイルのパスが含まれています: {err['file']}"
+                )
+
+
+@require_v020
+class TestAllChaptersCaseDescriptions:
+    """1〜7章の全 spec.yaml ケースに日本語説明があること"""
+
+    def test_all_hdl_spec_cases_have_japanese_descriptions(self):
+        import yaml, unicodedata
+        data_root = DATA_ROOT.parent  # fpga_study/data
+
+        def is_japanese(text: str) -> bool:
+            """文字列に日本語（ひらがな・カタカナ・漢字）が含まれるか"""
+            if not text:
+                return False
+            for ch in text:
+                if unicodedata.category(ch) in ('Lo',) and ord(ch) > 0x3000:
+                    return True
+                cat = unicodedata.name(ch, '')
+                if any(kw in cat for kw in ('HIRAGANA', 'KATAKANA', 'CJK')):
+                    return True
+            return False
+
+        failures = []
+        for chapter_dir in sorted(data_root.iterdir()):
+            if not chapter_dir.is_dir() or chapter_dir.name.startswith('.'):
+                continue
+            if chapter_dir.name not in {f"chapter0{i}" for i in range(1, 8)}:
+                continue
+            for lesson_dir in sorted(chapter_dir.iterdir()):
+                if not lesson_dir.is_dir():
+                    continue
+                spec_path = lesson_dir / "spec.yaml"
+                ex_path = lesson_dir / "exercise.yaml"
+                if not (spec_path.exists() and ex_path.exists()):
+                    continue
+                spec = yaml.safe_load(spec_path.read_text())
+                ex = yaml.safe_load(ex_path.read_text())
+                if ex.get("type") != "hdl":
+                    continue
+                descriptions = ex.get("case_descriptions", {})
+                for case in spec.get("cases", []):
+                    name = case.get("name", "")
+                    desc = descriptions.get(name, "")
+                    if not desc:
+                        failures.append(f"{lesson_dir.relative_to(data_root)}: ケース '{name}' の説明が空です")
+                    elif not is_japanese(desc):
+                        failures.append(f"{lesson_dir.relative_to(data_root)}: ケース '{name}' の説明に日本語がありません: {desc!r}")
+
+        assert not failures, "\n".join(failures)
+
+
+@require_v020
 class TestDeltasimVersion:
     """deltasim のバージョンと schema_version を確認"""
 

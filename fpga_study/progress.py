@@ -113,7 +113,14 @@ def _check_completed(
     1. quiz_total > 0 のとき: クイズが全問正解
     2. all_problem_ids がある場合: 練習問題が全問合格
     3. has_hdl=True のとき: HDL演習が PASS
+
+    条件が何もない（練習問題なし・クイズなし・HDLなし）場合は完了にしない。
+    パズルは完了条件に含まない（仕様未定）。
     """
+    # 確認すべき条件が何もない場合は完了にしない
+    if not all_problem_ids and quiz_total == 0 and not has_hdl:
+        return False
+
     row = conn.execute(
         "SELECT * FROM lesson_progress WHERE lesson_key=?", (key,)
     ).fetchone()
@@ -263,8 +270,18 @@ def save_puzzle_result(
     chapter_id: str,
     lesson_id: str,
     passed: bool,
+    all_problem_ids: list[str] = (),
+    has_hdl: bool = False,
+    quiz_total: int = 0,
     db_path: Optional[Path] = None,
 ) -> dict:
+    """
+    パズル結果を保存する。
+
+    注意: パズルの合格は完了条件には含まれない（仕様未定のため）。
+    完了は「練習問題全問 + クイズ満点 + HDL演習（あるとき）」で判定する。
+    パズルは puzzle_completed として別途記録するのみ。
+    """
     conn = _get_conn(db_path)
     key = f"{chapter_id}/{lesson_id}"
     now = datetime.now(timezone.utc).isoformat()
@@ -273,12 +290,13 @@ def save_puzzle_result(
         if passed:
             with conn:
                 conn.execute(
-                    """UPDATE lesson_progress
-                       SET puzzle_completed=1, completed=1,
-                           completed_at=COALESCE(completed_at,?), updated_at=?
-                       WHERE lesson_key=?""",
-                    (now, now, key),
+                    "UPDATE lesson_progress SET puzzle_completed=1, updated_at=? WHERE lesson_key=?",
+                    (now, key),
                 )
+        # パズル合格だけでは completed=1 にしない（仕様未定）
+        # _check_completed を呼んで他条件が揃っていれば completed にする
+        if _check_completed(conn, key, list(all_problem_ids), has_hdl, quiz_total):
+            _apply_completed(conn, key)
         _check_and_award_badges(conn, db_path)
         return get_lesson_progress(chapter_id, lesson_id, db_path)
     finally:

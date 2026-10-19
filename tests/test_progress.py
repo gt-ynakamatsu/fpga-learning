@@ -67,7 +67,8 @@ class TestPuzzleProgress:
     def test_save_puzzle_result_pass(self, tmp_db):
         result = save_puzzle_result("chapter02", "lesson03", passed=True, db_path=tmp_db)
         assert result["puzzle_completed"] == 1
-        assert result["completed"] == 1
+        # パズル合格だけでは完了にならない（仕様未定のため条件外）
+        assert result["completed"] == 0
 
     def test_save_puzzle_result_fail(self, tmp_db):
         result = save_puzzle_result("chapter02", "lesson03", passed=False, db_path=tmp_db)
@@ -140,6 +141,29 @@ class TestCompletionConditions:
                          all_problem_ids=["p1", "p2", "p3"], has_hdl=False, db_path=tmp_db)
         prog = get_lesson_progress("chapter01", "lesson01", tmp_db)
         assert prog["completed"] == 0, "p2/p3 が未完了なのに completed になっています"
+
+
+class TestPuzzleCompletion:
+    """パズル合格だけでは完了しないことを確認"""
+
+    def test_puzzle_alone_does_not_complete(self, tmp_db):
+        """パズル合格だけでは completed=0（仕様未定のためパズルは完了条件に含まない）"""
+        from fpga_study.progress import save_puzzle_result, get_lesson_progress
+        result = save_puzzle_result("chapter02", "lesson03", passed=True, db_path=tmp_db)
+        assert result["puzzle_completed"] == 1
+        assert result["completed"] == 0, (
+            "パズルだけで completed=1 になっています。"
+            "パズルは完了条件に含まれません（仕様未定）。"
+        )
+
+    def test_puzzle_plus_quiz_without_exercises_not_complete(self, tmp_db):
+        """パズル + クイズ満点だけでは、練習問題がある場合に完了しない"""
+        from fpga_study.progress import save_puzzle_result, save_quiz_result, get_lesson_progress
+        save_puzzle_result("chapter02", "lesson03", passed=True, db_path=tmp_db)
+        save_quiz_result("chapter02", "lesson03", 3, 3,
+                         all_problem_ids=["p1", "p2", "p3"], db_path=tmp_db)
+        prog = get_lesson_progress("chapter02", "lesson03", tmp_db)
+        assert prog["completed"] == 0
 
 
 class TestBadges:

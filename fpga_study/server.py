@@ -380,7 +380,16 @@ def create_app(
                 chapter_id, lesson_id, req.connections, req.gate_placements
             )
             if result["passed"]:
-                save_puzzle_result(chapter_id, lesson_id, passed=True, db_path=db_path)
+                exercise = load_exercise(chapter_id, lesson_id)
+                all_prob_ids = [p["id"] for p in (exercise or {}).get("problems", [])]
+                lesson_inf = load_lesson(chapter_id, lesson_id)
+                has_hdl = (lesson_inf or {}).get("has_hdl_exercise", False)
+                q_total = len((lesson_inf or {}).get("quiz", {}).get("questions", []))
+                save_puzzle_result(
+                    chapter_id, lesson_id, passed=True,
+                    all_problem_ids=all_prob_ids, has_hdl=has_hdl,
+                    quiz_total=q_total, db_path=db_path
+                )
             return result
         except FileNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc))
