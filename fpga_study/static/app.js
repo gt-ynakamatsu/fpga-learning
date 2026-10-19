@@ -348,14 +348,23 @@ async function buildHdlSection(exercise, chapterId, lessonId) {
 
 function _renderHdlResults(container, res) {
   container.innerHTML = '';
+
+  // バージョン不足・未インストール
   if (!res.simulator_available || !res.simulator_version_ok) {
     container.append(h('div', { class: 'hdl-version-warn' },
-      `⚠️ ${res.version_message || res.user_message || 'deltasim が必要です'}`));
+      `⚠️ ${res.message || res.user_message || 'deltasim が必要です'}`));
     return;
   }
-  const sc = res.status === 'PASS' ? 'pass' : res.status === 'FAIL' ? 'fail' : 'error';
-  const sl = res.status === 'PASS' ? '✅ 合格！' : res.status === 'FAIL' ? '❌ 不合格' : `⚠️ ${res.status}`;
-  container.append(h('div', { class: `hdl-overall ${sc}` }, sl));
+
+  // user_message を常に見出しとして最初に表示
+  if (res.user_message) {
+    const msgCls = res.status === 'PASS' ? 'hdl-overall pass'
+                 : res.status === 'FAIL' ? 'hdl-overall fail'
+                 : 'hdl-overall error';
+    container.append(h('div', { class: msgCls, style: 'white-space:pre-line' }, res.user_message));
+  }
+
+  if (res.status === 'PASS') return;  // PASS は user_message だけでよい
   for (const c of (res.cases || [])) {
     const cEl = h('div', { class: 'hdl-case' });
     const icon = c.status === 'PASS' ? '✓' : c.status === 'SKIP' ? '⏭' : '✗';
@@ -372,17 +381,21 @@ function _renderHdlResults(container, res) {
     }
     container.append(cEl);
   }
-  if (res.errors?.length || res.raw_detail) {
+  // エラー詳細（code と message のみ、JSON全体は出さない）
+  if (res.errors?.length || res.error_detail?.length) {
     const eb = h('div', { class: 'hdl-errors' });
     const details = document.createElement('details');
     details.append(Object.assign(document.createElement('summary'), { textContent: '詳細（クリックで展開）' }));
-    for (const e of (res.errors || [])) {
-      const msg = e.message.replace(/\/tmp\/[^/]+\//g, '');
+    const items = res.error_detail || res.errors || [];
+    const seen = new Set();
+    for (const e of items) {
+      const key = `${e.code || ''}:${(e.message || '').slice(0, 60)}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const msg = (e.message || '').replace(/\/tmp\/[^\s:,)]+/g, 'design.sv');
+      const line = e.line ? ` 行${e.line}` : '';
       details.append(h('div', { class: 'hdl-error-item' },
-        `[${e.severity}]${e.line ? ' 行' + e.line + ':' : ''} ${msg}`));
-    }
-    if (res.raw_detail) {
-      details.append(h('pre', { class: 'hdl-error-item', style: 'white-space:pre-wrap;font-size:.8rem' }, res.raw_detail));
+        `[${e.code || e.severity || 'error'}]${line}: ${msg}`));
     }
     eb.append(details);
     container.append(eb);
@@ -489,6 +502,17 @@ function buildQuizSection(questions, chapterId, lessonId) {
   async function renderResult() {
     const total = questions.length;
     section.innerHTML = '';
+
+    // 満点のとき自動保存
+    if (score === total) {
+      try {
+        await apiFetch(`/api/chapters/${chapterId}/lessons/${lessonId}/quiz/complete`, {
+          method: 'POST',
+          body: JSON.stringify({ score, total }),
+        });
+      } catch (_) {}
+    }
+
     section.append(
       h('h2', {}, '📝 確認クイズ'),
       h('div', { class: 'quiz-result' },
@@ -501,19 +525,7 @@ function buildQuizSection(questions, chapterId, lessonId) {
           h('button', {
             class: 'btn btn-secondary',
             onclick: () => { currentIdx = 0; score = 0; answers.fill(null); render(); }
-          }, '🔄 もう一度'),
-          h('button', {
-            class: 'btn btn-primary',
-            onclick: async () => {
-              try {
-                await apiFetch(`/api/chapters/${chapterId}/lessons/${lessonId}/quiz/complete`, {
-                  method: 'POST',
-                  body: JSON.stringify({ score, total }),
-                });
-                showToast('進捗を保存しました ✓', 'success');
-              } catch (_) {}
-            }
-          }, '進捗を保存')
+          }, '🔄 もう一度')
         )
       )
     );

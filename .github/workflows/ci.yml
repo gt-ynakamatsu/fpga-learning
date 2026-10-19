@@ -41,7 +41,7 @@ jobs:
           import sys
           ver = '$VER'
           parts = tuple(int(x) for x in ver.split('.'))
-          if parts < (0, 2, 0):
+          if parts < (0, 2, 1):
               print(f'ERROR: deltasim {ver} < 0.2.1 required')
               sys.exit(1)
           print(f'OK: deltasim {ver} >= 0.2.1')
@@ -58,6 +58,8 @@ jobs:
           REQUIRE_DELTASIM: "1"
 
       - name: E2E テストの実行（Playwright 含む）
+        env:
+          REQUIRE_DELTASIM: "1"
         run: pytest tests/test_e2e.py -v --tb=short
 
       - name: カバレッジレポート

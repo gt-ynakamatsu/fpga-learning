@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import sqlite3
 import tempfile
 from pathlib import Path
@@ -10,6 +11,30 @@ import pytest
 from fastapi.testclient import TestClient
 
 from fpga_study.server import create_app
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    """REQUIRE_DELTASIM=1 のとき、deltasim v0.2.1 以上がなければ即 FAIL"""
+    if os.environ.get("REQUIRE_DELTASIM", "0") != "1":
+        return
+    try:
+        from fpga_study.simulator import get_deltasim_version
+        ver = get_deltasim_version()
+        if ver is None:
+            pytest.exit(
+                "REQUIRE_DELTASIM=1: deltasim がインストールされていません。"
+                " pip install 'git+https://github.com/gt-ynakamatsu/deltasim.git@v0.2.1'",
+                returncode=1,
+            )
+        parts = tuple(int(x) for x in ver.split("."))
+        if parts < (0, 2, 1):
+            pytest.exit(
+                f"REQUIRE_DELTASIM=1: deltasim {ver} < 0.2.1。"
+                " pip install 'git+https://github.com/gt-ynakamatsu/deltasim.git@v0.2.1'",
+                returncode=1,
+            )
+    except Exception as e:
+        pytest.exit(f"REQUIRE_DELTASIM=1: バージョン確認失敗: {e}", returncode=1)
 
 
 @pytest.fixture()

@@ -135,6 +135,7 @@ def create_app(
         ch = load_chapter(chapter_id)
         if not ch:
             raise HTTPException(status_code=404, detail="章が見つかりません")
+        _check_visible(ch.get("status"), "この章は現在公開されていません")
         ch.pop("_dir", None)
         return ch
 
@@ -159,17 +160,19 @@ def create_app(
         if not lesson:
             raise HTTPException(status_code=404, detail="レッスンが見つかりません")
         _check_visible(lesson.get("status"))
-        # 演習データを追加（正解は除去）
+        # 演習データを追加（正解・ヒントは除去）
         exercise = load_exercise(chapter_id, lesson_id)
         if exercise:
             exercise.pop("_dir", None)
             for prob in exercise.get("problems", []):
-                prob.pop("answer", None)   # 正解を返さない
+                prob.pop("answer", None)       # 正解を返さない
+                prob.pop("wrong_hint", None)   # 誤答ヒントは回答後のみ
         lesson["exercise"] = exercise
-        # クイズからも正解を除去
+        # クイズから正解・解説を除去（回答後のみ返す）
         if lesson.get("quiz"):
             for q in lesson["quiz"].get("questions", []):
                 q.pop("answer", None)
+                q.pop("explanation", None)
         lesson.pop("_dir", None)
         return lesson
 
@@ -179,6 +182,9 @@ def create_app(
     async def api_quiz_check(
         chapter_id: str, lesson_id: str, req: QuizAnswerRequest
     ) -> dict:
+        lesson_for_check = load_lesson(chapter_id, lesson_id)
+        if lesson_for_check:
+            _check_visible(lesson_for_check.get("status"), "このレッスンは現在公開されていません")
         try:
             return check_quiz_answer(
                 chapter_id, lesson_id, req.question_id, req.answer_index
@@ -191,6 +197,8 @@ def create_app(
         chapter_id: str, lesson_id: str, req: QuizCompleteRequest
     ) -> dict:
         lesson_info = load_lesson(chapter_id, lesson_id)
+        if lesson_info:
+            _check_visible(lesson_info.get("status"), "このレッスンは現在公開されていません")
         exercise = load_exercise(chapter_id, lesson_id)
         all_prob_ids = [p["id"] for p in (exercise or {}).get("problems", [])]
         has_hdl = (lesson_info or {}).get("has_hdl_exercise", False)
@@ -317,7 +325,7 @@ def create_app(
                     for ch in c.checks:
                         if ch.status == "PASS":
                             continue
-                        offset_ns = getattr(ch, "offset_ns", 0) or 0
+                        offset_ns = ch.offset_ns or 0  # CheckResult.offset_ns (v0.2.1+)
                         if offset_ns:
                             loc = f"{ch.cycle}サイクル目のクロックの立ち上がりから{offset_ns}ns後"
                         else:
@@ -363,8 +371,11 @@ def create_app(
                     "errors": errors_out,
                     "lint_hints": lint_hints,
                     "user_message": result.user_message,
-                    # 空 JSON 時に stderr を折りたたんで表示するため
-                    "raw_detail": result.raw_output if result.status == "ERROR" and not result.cases else None,
+                    # 詳細：errors[] の code と message のみ（JSON全体や/tmpパスは出さない）
+                    "error_detail": [
+                        {"code": e.code, "message": e.message}
+                        for e in result.errors
+                    ] if result.errors else None,
                 }
 
         return await _grade()
@@ -375,6 +386,9 @@ def create_app(
     async def api_puzzle_check(
         chapter_id: str, lesson_id: str, req: PuzzleCheckRequest
     ) -> dict:
+        puzzle_lesson = load_lesson(chapter_id, lesson_id)
+        if puzzle_lesson:
+            _check_visible(puzzle_lesson.get("status"), "このレッスンは現在公開されていません")
         try:
             result = check_puzzle_solution(
                 chapter_id, lesson_id, req.connections, req.gate_placements

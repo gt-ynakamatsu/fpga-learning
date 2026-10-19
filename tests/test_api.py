@@ -138,6 +138,47 @@ class TestPuzzleAPI:
         assert res.status_code == 404
 
 
+class TestNoTmpPaths:
+    """API レスポンスに /tmp パスが含まれないこと"""
+
+    def test_syntax_error_response_has_no_tmp_path(self, client):
+        """文法エラーの採点レスポンスに /tmp が含まれないこと"""
+        import json as _json
+        bad_code = "module and_gate(input logic a, b, output logic y);\n    assign y = a & ;\nendmodule\n"
+        res = client.post(
+            "/api/chapters/chapter06/lessons/lesson01/hdl/grade",
+            json={"code": bad_code},
+        )
+        assert res.status_code == 200
+        raw = _json.dumps(res.json())
+        assert "/tmp" not in raw, (
+            f"API レスポンスに /tmp が含まれています:\n{raw[:500]}"
+        )
+
+
+class TestDraftEndpoints404:
+    """show_drafts なし起動時に draft レッスンの全エンドポイントが 404 を返すこと"""
+
+    def test_get_chapter_draft_returns_404(self, client):
+        """GET /api/chapters/{draft_chapter} が 404"""
+        # chapter03 は draft のまま
+        # デフォルトサーバーは show_drafts=False のはず
+        # conftest の client fixture が show_drafts=False で起動されていること前提
+        # 実際の draft 章がなければスキップ
+        import pytest
+        from fpga_study.content.loader import load_chapter
+        ch = load_chapter("chapter03")
+        if not ch or ch.get("status") not in ("draft", "review"):
+            pytest.skip("chapter03 が draft/review ではありません")
+        # default client (show_drafts=False) では 404 になること
+        res = client.get("/api/chapters/chapter03")
+        # reviewd なら 200、draft なら 404
+        if ch.get("status") == "reviewed":
+            assert res.status_code == 200
+        else:
+            assert res.status_code == 404, f"draft 章が 404 になっていません: {res.status_code}"
+
+
 class TestExerciseAPI:
     def test_exercise_check_correct(self, client):
         res = client.post(

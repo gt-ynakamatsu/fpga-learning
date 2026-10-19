@@ -320,9 +320,25 @@ def _check_and_award_badges(
     progress_list = [dict(r) for r in rows]
 
     completed_count = sum(1 for p in progress_list if p["completed"])
-    ch1_completed = all(
-        p["completed"] for p in progress_list if p["chapter_id"] == "chapter01"
-    )
+
+    # 第N章マスターバッジは、「その章の全レッスンが完了」したときのみ付与
+    # content から全レッスン ID を取得して照合する
+    def _is_chapter_complete(chapter_id: str) -> bool:
+        try:
+            from fpga_study.content.loader import load_lessons as _load_ls
+            all_lesson_ids = [ls["lesson_id"] for ls in (_load_ls(chapter_id) or [])]
+        except Exception:
+            all_lesson_ids = []
+        if not all_lesson_ids:
+            return False
+        progress_map = {
+            p["lesson_id"]: p["completed"]
+            for p in progress_list
+            if p["chapter_id"] == chapter_id
+        }
+        return all(progress_map.get(lid, 0) for lid in all_lesson_ids)
+
+    ch1_completed = _is_chapter_complete("chapter01")
 
     badges_to_award: list[tuple[str, str]] = []
     if completed_count >= 1:

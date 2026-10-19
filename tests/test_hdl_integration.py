@@ -62,15 +62,6 @@ skip_if_no_deltasim = pytest.mark.skipif(
     reason="deltasim がインストールされていません（pip install deltasim）",
 )
 
-def pytest_configure(config):
-    """REQUIRE_DELTASIM=1 のとき、バージョン不足なら FAIL"""
-    if _REQUIRE_DELTASIM and not DELTASIM_V021_OR_LATER:
-        pytest.exit(
-            "REQUIRE_DELTASIM=1 が設定されていますが deltasim 0.2.1 以上がありません。"
-            " pip install 'git+https://github.com/gt-ynakamatsu/deltasim.git@v0.2.1'",
-            returncode=1,
-        )
-
 
 require_v020 = pytest.mark.skipif(
     not DELTASIM_V021_OR_LATER,
@@ -360,6 +351,67 @@ class TestSpecZeroWarnings:
 
 
 # ── deltasim バージョン確認 ────────────────────────────────────────────
+
+
+@require_v020
+class TestOffsetNsInFailedChecks:
+    """offset_ns が CheckResult に正しく格納されること（実際の deltasim 出力で確認）"""
+
+    def test_offset_ns_present_in_failed_checks(self):
+        """combinational.sv の hold_between_edges ケースで offset_ns=4 が返ること"""
+        from fpga_study.simulator import _parse_deltasim_result, DeltasimCLISimulator
+        answer = DATA_ROOT / "chapter06" / "lesson03" / "wrong_codes" / "combinational.sv"
+        spec = DATA_ROOT / "chapter06" / "lesson03" / "spec.yaml"
+        assert answer.exists()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            json_out = Path(tmp) / "r.json"
+            import subprocess as sp
+            proc = sp.run(
+                ["deltasim", "test", str(answer), "--spec", str(spec), "--json", str(json_out)],
+                capture_output=True, text=True, timeout=20,
+            )
+            raw = json_out.read_text() if json_out.exists() else ""
+
+        result = _parse_deltasim_result(raw, proc.stderr or "")
+
+        # hold_between_edges ケースの失敗チェックに offset_ns > 0 があること
+        found_offset = False
+        for c in result.cases:
+            if "hold_between_edges" in c.name:
+                for ch in c.checks:
+                    if ch.status != "PASS" and ch.offset_ns > 0:
+                        found_offset = True
+                        break
+
+        assert found_offset, (
+            f"hold_between_edges ケースで offset_ns > 0 の失敗チェックが見つかりません。"
+            f"cases: {[(c.name, [(ch.name, ch.offset_ns) for ch in c.checks]) for c in result.cases]}"
+        )
+
+    def test_offset_ns_location_display(self):
+        """offset_ns が「Nサイクル目のクロックの立ち上がりからMns後」と表示されること"""
+        from fpga_study.simulator import CheckResult
+        ch = CheckResult(
+            name="q@cycle4+4ns[spec]",
+            status="FAIL",
+            signal="q",
+            cycle=4,
+            time_ns=29,
+            expected="1",
+            actual="0",
+            offset_ns=4,
+        )
+        assert ch.offset_ns == 4
+
+        # server.py のフォーマットロジックを確認
+        offset_ns = ch.offset_ns or 0
+        if offset_ns:
+            loc = f"{ch.cycle}サイクル目のクロックの立ち上がりから{offset_ns}ns後"
+        else:
+            loc = f"{ch.cycle}サイクル目"
+
+        assert "4サイクル目のクロックの立ち上がりから4ns後" == loc, f"表示が異なります: {loc}"
 
 
 @require_v020

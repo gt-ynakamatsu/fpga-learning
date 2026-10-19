@@ -40,13 +40,21 @@ def _check_blocking_in_ff(code: str) -> list[str]:
         re.DOTALL | re.IGNORECASE,
     )
 
+    def _strip_line_comments(text: str) -> str:
+        """行コメント (//) を除去してから検査する"""
+        result = []
+        for ln in text.splitlines():
+            # // より前の部分のみ使用（文字列リテラル内の // は考慮しない簡易版）
+            idx = ln.find("//")
+            result.append(ln[:idx] if idx >= 0 else ln)
+        return "\n".join(result)
+
     for m in ff_block_re.finditer(code):
-        block = m.group(1)
+        block = _strip_line_comments(m.group(1))
         # ブロック内で = を使っている行（<= ではなく、=）
         for line in block.splitlines():
             stripped = line.strip()
-            # コメント行はスキップ
-            if stripped.startswith("//") or stripped.startswith("/*"):
+            if not stripped:
                 continue
             # <= は除外して = を検出
             # 条件比較 (==, !=, >=, <=, =>) も除外

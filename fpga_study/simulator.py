@@ -172,6 +172,7 @@ class CheckResult:
     expected: str         # 4値文字列 (MSB先頭、小文字)
     actual: str
     message: Optional[str] = None
+    offset_ns: int = 0    # サイクル内オフセット (v0.2.1+、§15.7)
 
 
 @dataclass
@@ -473,6 +474,7 @@ def _parse_check(c: dict) -> CheckResult:
         expected=c.get("expected", ""),
         actual=c.get("actual", ""),
         message=c.get("message"),
+        offset_ns=int(c.get("offset_ns") or 0),  # v0.2.1+ §15.7
     )
 
 
@@ -586,11 +588,21 @@ def _build_user_message(
 
     if errors:
         lines.append("❌ コードにエラーが見つかりました：")
-        for e in errors[:5]:
-            loc = f"{e.file}:{e.line}:{e.column}" if e.file else f"行{e.line}"
-            lines.append(f"  [{e.severity}] {loc} — {_friendly_error(e.message)}")
-        if len(errors) > 5:
-            lines.append(f"  （他 {len(errors) - 5} 件）")
+        seen_codes: set = set()
+        shown = 0
+        for e in errors:
+            # 同じコードのエラーは1件にまとめる
+            dedup_key = (e.code, e.message[:60])
+            if dedup_key in seen_codes:
+                continue
+            seen_codes.add(dedup_key)
+            # ファイル名のみ（/tmp パスを除去）
+            fname = Path(e.file).name if e.file else ""
+            loc = f"{fname}:{e.line}" if fname else (f"行{e.line}" if e.line else "")
+            lines.append(f"  [{e.severity}]{(' ' + loc) if loc else ''} — {_friendly_error(e.message)}")
+            shown += 1
+            if shown >= 5:
+                break
     elif cases:
         failed_cases = [c for c in cases if c.status not in ("PASS", "SKIP")]
         lines.append(f"❌ {len(failed_cases)}ケースが不合格です：")
@@ -625,7 +637,9 @@ def _build_user_message(
 
 
 def _friendly_error(message: str) -> str:
-    """エラーメッセージを初心者向けに言い換える"""
+    """エラーメッセージを初心者向けに言い換える（/tmp パスを除去）"""
+    import re as _re
+    message = _re.sub(r'/tmp/[^\s:,]+', 'design.sv', message)
     lower = message.lower()
     hints = [
         ("syntax error",       "書き方のミスがあります（文法エラー）"),
