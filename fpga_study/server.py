@@ -394,7 +394,7 @@ def create_app(
             if module_name and module_name != top_name:
                 # spec / top: は学習者に見せない
                 msg_user = f"モジュール名は '{top_name}' にしてください"
-                msg_detail = f"モジュール名 '{module_name}' が top: {top_name} と異なります"
+                msg_detail = f"モジュール名 '{module_name}' は '{top_name}' にしてください"
                 return {
                     "simulator_available": True,
                     "simulator_version_ok": True,

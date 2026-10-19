@@ -642,7 +642,7 @@ def _format_e001(e: "ErrorDetail") -> str:
 
     # §11.17 固有パターン
     if "top module" in lower and "not found" in lower:
-        return f"モジュール名が spec の設定（top:）と異なります"
+        return f"モジュール名が違います"
     if "expected port direction" in lower:
         return f"ポートの向き（input / output / inout）が指定されていません{line_str}"
 
@@ -669,7 +669,7 @@ def _friendly_error(message: str, code: str = "") -> str:
     lower = message.lower()
 
     if code == "E002":
-        return "モジュール名が spec の設定（top:）と異なります"
+        return "モジュール名が違います"
     if code == "E_DELTA_LIMIT":
         return "組み合わせのループがあります（assign y = ~y; のような自己参照）"
     if code == "E_LOOP_LIMIT":
@@ -679,12 +679,15 @@ def _friendly_error(message: str, code: str = "") -> str:
     if "expected port direction" in message:
         return "ポートの向き（input / output / inout）が指定されていません"
     if "top module" in lower and "not found" in lower:
-        return "モジュール名が spec の設定（top:）と異なります"
+        return "モジュール名が違います"
     # E001 ですでに日本語のメッセージ（deltasim v0.2.2+）はそのまま使う
     if "ありません" in message or "見つかりません" in message or "開始" in message:
         return message
 
     # よくある E001 パターン（§11.20 の2行目に使う日本語）
+    # セミコロン抜け: expected ';' … を最初にチェック（endmodule 判定より優先）
+    if "expected ';'" in message:
+        return "セミコロン ';' が抜けています"
     # カンマ抜け: expected ')' got 'output' など（ポートリスト内の識別子）
     if "expected ')'" in message and "got '" in message:
         got = message.split("got '")[-1].split("'")[0] if "got '" in message else ""
@@ -699,9 +702,11 @@ def _friendly_error(message: str, code: str = "") -> str:
     # module なし: No module declaration found
     if "no module" in lower:
         return "module がありません"
+    # 式が途中で終わっている: unexpected token in expression
+    if "unexpected token in expression" in lower or "unexpected token: ';'" in lower:
+        return "式の途中で終わっています（= の後ろに値が必要です）"
 
     hints = [
-        ("expected ';'",  "セミコロン ';' が抜けています"),
         ("syntax error",    "書き方のミスがあります（文法エラー）"),
         ("undeclared",      "宣言されていない信号や変数を使っています"),
         ("undefined",       "定義されていないものを参照しています"),

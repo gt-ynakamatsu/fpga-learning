@@ -392,7 +392,9 @@ class TestParserSyntaxError:
     def test_user_message_is_beginner_friendly(self):
         result = _parse_deltasim_result(SAMPLE_ERROR_SYNTAX)
         assert "❌" in result.user_message
-        assert ("セミコロン" in result.user_message or "counter.sv" in result.user_message)
+        assert "セミコロン" in result.user_message, (
+            f"セミコロンの案内が出ません: {result.user_message!r}"
+        )
 
     def test_cases_empty(self):
         result = _parse_deltasim_result(SAMPLE_ERROR_SYNTAX)
@@ -687,8 +689,20 @@ class TestE001JapaneseHints:
         result = _format_e001(e)
         assert ")" in result or "括弧" in result, f"括弧ヒントが出ません: {result!r}"
 
+    def test_semicolon_before_endmodule_hint(self):
+        """expected ';', got 'endmodule' → セミコロン案内（end 抜けではない）"""
+        from fpga_study.simulator import _format_e001
+        e = self._make_error("expected ';', got 'endmodule'", line=6)
+        result = _format_e001(e)
+        assert "セミコロン" in result, (
+            f"「expected ';', got 'endmodule'」でセミコロン案内が出ません: {result!r}"
+        )
+        assert "end" not in result or "セミコロン" in result, (
+            f"「end が足りません」になっています（退行）: {result!r}"
+        )
+
     def test_end_missing_hint(self):
-        """got KW ('endmodule') → end が足りません"""
+        """got KW ('endmodule') → end が足りません（';' が無い場合）"""
         from fpga_study.simulator import _format_e001
         e = self._make_error("expected token type ID, got KW ('endmodule')", line=4)
         result = _format_e001(e)
