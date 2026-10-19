@@ -2,5 +2,5 @@ id: lesson03
 title: "always_ff — フリップフロップと同期リセット"
 description: "always_ff を使ってDフリップフロップと同期リセット付き回路を記述しよう"
 estimated_min: 15
-status: reviewed
+status: published
 has_hdl_exercise: true

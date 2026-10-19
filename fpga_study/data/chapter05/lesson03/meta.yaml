@@ -2,5 +2,5 @@ id: lesson03
 title: "ステートマシンの設計演習"
 description: "自動販売機の制御回路を題材に、ステートマシン設計の全手順を体験しよう"
 estimated_min: 15
-status: reviewed
+status: published
 has_exercise: true

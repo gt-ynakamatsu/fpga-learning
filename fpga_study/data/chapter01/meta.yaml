@@ -2,7 +2,7 @@ id: chapter01
 title: "2進数・16進数とビット"
 description: "コンピュータとFPGAが使う「0と1の世界」を基礎から学ぼう"
 order: 1
-status: reviewed
+status: published
 lessons:
   - lesson01
   - lesson02

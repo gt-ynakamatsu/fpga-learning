@@ -2,7 +2,7 @@ id: chapter05
 title: "ステートマシン（有限状態機械）"
 description: "状態遷移の考え方を学び、実際の回路設計に応用しよう"
 order: 5
-status: reviewed
+status: published
 lessons:
   - lesson01
   - lesson02

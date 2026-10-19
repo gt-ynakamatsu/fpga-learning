@@ -15,7 +15,7 @@ FastAPI + Vanilla JS で構成された完全オフライン動作の学習環�
 
 ## 収録内容
 
-### 教材（全7章、reviewed / published）
+### 教材（全7章、すべて published）
 
 | 章 | タイトル | 主な演習 |
 |---|---|---|

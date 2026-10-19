@@ -2,7 +2,7 @@ id: chapter07
 title: "シミュレーションと波形の見方"
 description: "deltasimを使ってHDLコードをシミュレーションし、波形で動作を確認しよう"
 order: 7
-status: reviewed
+status: published
 lessons:
   - lesson01
   - lesson02

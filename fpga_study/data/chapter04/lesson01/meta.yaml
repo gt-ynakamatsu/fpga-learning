@@ -2,5 +2,5 @@ id: lesson01
 title: "クロックとフリップフロップ"
 description: "デジタル回路の心臓部「クロック」と状態を記憶する「フリップフロップ」を学ぼう"
 estimated_min: 13
-status: reviewed
+status: published
 has_exercise: true

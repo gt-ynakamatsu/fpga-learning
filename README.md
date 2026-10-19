@@ -48,7 +48,17 @@ fpga-study --show-drafts    # 開発用：draft/review 状態のレッスンも�
 
 ## 教材の状態
 
-第1〜7章のレッスンはすべて reviewed／published 状態です。`--show-drafts` なしの既定起動で全章を学習できます。
+第1〜7章のレッスンはすべて **published** 状態です。`--show-drafts` なしの既定起動で全章を学習できます。
+
+### status の意味
+
+| status | 意味 | 既定起動での表示 |
+|---|---|---|
+| `published` | 公開済み | 表示される |
+| `reviewed` | レビュー済み。既定起動で表示。バッジは非表示（published と同じ見え方） | 表示される |
+| `draft` / `review` | 下書き・審査中 | 表示されない（`--show-drafts` で表示） |
+
+### 収録章
 
 | 章 | 内容 | 演習 |
 |---|---|---|
