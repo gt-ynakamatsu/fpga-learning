@@ -1,30 +1,32 @@
-id: ex_ch06_l03
-title: "Dフリップフロップを always_ff で実装しよう"
-type: hdl
-difficulty: 2
-description: |
-  module d_ff を完成させてください。
-  clk の立ち上がりで rst=1 ならリセット（q=0）、rst=0 なら d を q に記録します。
-spec_file: spec.yaml
 answer_file: answer.sv
-template: |
-  module d_ff(
-      input  logic clk,  // クロック
-      input  logic rst,  // 同期リセット（rst=1 でリセット）
-      input  logic d,    // データ入力
-      output logic q     // 出力
-  );
-      always_ff @(posedge clk) begin
-          if (/* ここ: リセット条件 */)
-              q <= /* ここ: リセット時の値 */;
-          else
-              q <= /* ここ: 通常時の値 */;
-      end
-  endmodule
+case_descriptions:
+  capture_d0_after_d1: D=0 への切り替えを取り込む
+  hold_between_edges: クロックエッジ間に D が変わっても Q を保持
+  q_holds_while_d_stable: D が変化しないとき Q を保持
+  reset_clears_q: 初期リセットで Q=0
+  rst_overrides_d: リセットが D より優先される
+  same_cycle_capture: 同サイクルでの D 取り込み確認
+  sync_reset_during_operation: 動作中の同期リセット
+  sync_reset_waits_for_edge: 同期リセットは次のエッジまで待つ
+description: 'module d_ff を完成させてください。
+
+  clk の立ち上がりで rst=1 ならリセット（q=0）、rst=0 なら d を q に記録します。
+
+  '
+difficulty: 2
 hints:
-  - "【必須ルール】順序回路は必ず always_ff @(posedge clk) begin ... end の中に書いてください"
-  - "【必須ルール】リセットは if (rst) q <= 0; のように always_ff ブロックの中で処理します（同期リセット）"
-  - "assign q = ... のように FF の外で書くのは誤りです"
-  - "リセット条件は rst です（rst=1 のときリセット）"
-  - "リセット時は 1'b0（1ビットの0）を代入します"
-  - "通常時は入力 d を q に代入します"
+- 【必須ルール】順序回路は必ず always_ff @(posedge clk) begin ... end の中に書いてください
+- 【必須ルール】リセットは if (rst) q <= 0; のように always_ff ブロックの中で処理します（同期リセット）
+- assign q = ... のように FF の外で書くのは誤りです
+- リセット条件は rst です（rst=1 のときリセット）
+- リセット時は 1'b0（1ビットの0）を代入します
+- 通常時は入力 d を q に代入します
+id: ex_ch06_l03
+spec_file: spec.yaml
+template: "module d_ff(\n    input  logic clk,  // クロック\n    input  logic rst,  //\
+  \ 同期リセット（rst=1 でリセット）\n    input  logic d,    // データ入力\n    output logic q     //\
+  \ 出力\n);\n    always_ff @(posedge clk) begin\n        if (/* ここ: リセット条件 */)\n  \
+  \          q <= /* ここ: リセット時の値 */;\n        else\n            q <= /* ここ: 通常時の値\
+  \ */;\n    end\nendmodule\n"
+title: Dフリップフロップを always_ff で実装しよう
+type: hdl

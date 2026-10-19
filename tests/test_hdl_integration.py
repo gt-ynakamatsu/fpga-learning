@@ -15,6 +15,7 @@ expected カテゴリ:
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import tempfile
@@ -52,19 +53,28 @@ def _is_v020_or_later() -> bool:
 
 DELTASIM_V020_OR_LATER = _is_v020_or_later()
 
+_REQUIRE_DELTASIM = os.environ.get("REQUIRE_DELTASIM", "0") == "1"
+
 skip_if_no_deltasim = pytest.mark.skipif(
     not DELTASIM_AVAILABLE,
     reason="deltasim がインストールされていません（pip install deltasim）",
 )
 
+def pytest_configure(config):
+    """REQUIRE_DELTASIM=1 のとき、バージョン不足なら FAIL"""
+    if _REQUIRE_DELTASIM and not DELTASIM_V020_OR_LATER:
+        pytest.exit(
+            "REQUIRE_DELTASIM=1 が設定されていますが deltasim 0.2.0 以上がありません。"
+            " pip install 'git+https://github.com/gt-ynakamatsu/deltasim.git@v0.2.0'",
+            returncode=1,
+        )
+
+
 require_v020 = pytest.mark.skipif(
     not DELTASIM_V020_OR_LATER,
     reason=(
-        "⚠️ この deltasim は §15 (offset_ns) に対応していません。"
-        " b482527 以降をインストールしてください: "
-        "pip install git+https://github.com/gt-ynakamatsu/deltasim.git@b482527"
-        " offset_ns が無効な旧バージョンでは誤った PASS になる可能性があるため"
-        " このテストは SKIP されます（silent PASS 禁止）。"
+        "deltasim 0.2.0 以上が必要です。"
+        " pip install 'git+https://github.com/gt-ynakamatsu/deltasim.git@v0.2.0'"
     ),
 )
 
@@ -103,7 +113,7 @@ def load_manifest(wrong_codes_dir: Path) -> list[dict]:
 # ── 正解例が PASS すること ─────────────────────────────────────────────
 
 
-@skip_if_no_deltasim
+@require_v020
 class TestChapter06Answers:
     """第6章の正解例がすべて PASS することを確認"""
 
@@ -166,7 +176,7 @@ class TestChapter06Answers:
                 assert data["status"] in ("FAIL", "ERROR")
 
 
-@skip_if_no_deltasim
+@require_v020
 class TestChapter07Answers:
     """第7章の正解例がすべて PASS することを確認"""
 
@@ -198,7 +208,7 @@ class TestChapter07Answers:
 # ── §15 offset_ns バージョンガードテスト ────────────────────────────
 
 
-@skip_if_no_deltasim
+@require_v020
 class TestDeltasimVersionRequirement:
     """§15 サポートの確認（このテストが FAIL なら古い deltasim を使用中）"""
 
@@ -245,7 +255,7 @@ _WRONG_CODE_PARAMS = _collect_wrong_code_params()
 _OFFSET_NS_REQUIRED_FILES = {"combinational.sv", "async_reset.sv"}
 
 
-@skip_if_no_deltasim
+@require_v020
 class TestWrongCodesManifest:
     """
     manifest.yaml で定義された wrong_codes をすべて検証する。
@@ -304,7 +314,7 @@ class TestWrongCodesManifest:
 # ── 全 spec.yaml のゼロ warnings 確認 ────────────────────────────────
 
 
-@skip_if_no_deltasim
+@require_v020
 class TestSpecZeroWarnings:
     """
     全レッスンの spec.yaml + answer.sv を deltasim で実行し、
@@ -350,7 +360,7 @@ class TestSpecZeroWarnings:
 # ── deltasim バージョン確認 ────────────────────────────────────────────
 
 
-@skip_if_no_deltasim
+@require_v020
 class TestDeltasimVersion:
     """deltasim のバージョンと schema_version を確認"""
 

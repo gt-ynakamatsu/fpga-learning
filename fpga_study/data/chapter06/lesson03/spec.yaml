@@ -1,75 +1,164 @@
-version: 1
-top: d_ff
-clock: {signal: clk, period_ns: 10}
-reset: {signal: rst, active_low: false, duration_cycles: 3}
-sim: {cycles: 40}
 cases:
-  - name: same_cycle_capture
-    inputs:
-      - {at: 4, set: {d: 1}}
-    expected:
-      - {at: 4, check: {q: 1}}
-      - {at: 5, check: {q: 1}}
-
-  - name: capture_d0_after_d1
-    inputs:
-      - {at: 4, set: {d: 1}}
-      - {at: 6, set: {d: 0}}
-    expected:
-      - {at: 5, check: {q: 1}}
-      - {at: 7, check: {q: 0}}
-
-  - name: q_holds_while_d_stable
-    inputs:
-      - {at: 4, set: {d: 1}}
-    expected:
-      - {at: 4, check: {q: 1}}
-      - {at: 5, check: {q: 1}}
-      - {at: 6, check: {q: 1}}
-
-  - name: rst_overrides_d
-    inputs:
-      - {at: 4, set: {d: 1, rst: 1}}
-      - {at: 5, set: {rst: 0, d: 1}}
-    expected:
-      - {at: 4, check: {q: 0}}
-      - {at: 5, check: {q: 1}}
-
-  - name: sync_reset_during_operation
-    inputs:
-      - {at: 4, set: {d: 1}}
-      - {at: 8, set: {rst: 1}}
-      - {at: 9, set: {rst: 0, d: 1}}
-    expected:
-      - {at: 5, check: {q: 1}}
-      - {at: 8, check: {q: 0}}
-      - {at: 10, check: {q: 1}}
-
-  - name: hold_between_edges
-    inputs:
-      - {at: 4, set: {d: 1}}
-      - {at: 4, offset_ns: 3, set: {d: 0}}
-      - {at: 5, offset_ns: 2, set: {d: 1}}
-    expected:
-      - {at: 4, check: {q: 1}}
-      - {at: 4, offset_ns: 4, check: {q: 1}}
-      - {at: 5, check: {q: 0}}
-      - {at: 5, offset_ns: 2, check: {q: 0}}
-      - {at: 6, check: {q: 1}}
-
-  - name: sync_reset_waits_for_edge
-    inputs:
-      - {at: 4, set: {d: 1}}
-      - {at: 5, offset_ns: 3, set: {rst: 1}}
-      - {at: 6, offset_ns: 2, set: {rst: 0}}
-    expected:
-      - {at: 5, check: {q: 1}}
-      - {at: 5, offset_ns: 3, check: {q: 1}}
-      - {at: 5, offset_ns: 7, check: {q: 1}}
-      - {at: 6, check: {q: 0}}
-      - {at: 6, offset_ns: 3, check: {q: 0}}
-      - {at: 7, check: {q: 1}}
-
-  - name: reset_clears_q
-    expected:
-      - {at: 2, check: {q: 0}}
+- expected:
+  - at: 4
+    check:
+      q: 1
+  - at: 5
+    check:
+      q: 1
+  inputs:
+  - at: 4
+    set:
+      d: 1
+  name: same_cycle_capture
+- expected:
+  - at: 5
+    check:
+      q: 1
+  - at: 7
+    check:
+      q: 0
+  inputs:
+  - at: 4
+    set:
+      d: 1
+  - at: 6
+    set:
+      d: 0
+  name: capture_d0_after_d1
+- expected:
+  - at: 4
+    check:
+      q: 1
+  - at: 5
+    check:
+      q: 1
+  - at: 6
+    check:
+      q: 1
+  inputs:
+  - at: 4
+    set:
+      d: 1
+  name: q_holds_while_d_stable
+- expected:
+  - at: 4
+    check:
+      q: 0
+  - at: 5
+    check:
+      q: 1
+  inputs:
+  - at: 4
+    set:
+      d: 1
+      rst: 1
+  - at: 5
+    set:
+      d: 1
+      rst: 0
+  name: rst_overrides_d
+- expected:
+  - at: 5
+    check:
+      q: 1
+  - at: 8
+    check:
+      q: 0
+  - at: 10
+    check:
+      q: 1
+  inputs:
+  - at: 4
+    set:
+      d: 1
+  - at: 8
+    set:
+      rst: 1
+  - at: 9
+    set:
+      d: 1
+      rst: 0
+  name: sync_reset_during_operation
+- expected:
+  - at: 4
+    check:
+      q: 1
+  - at: 4
+    check:
+      q: 1
+    offset_ns: 4
+  - at: 5
+    check:
+      q: 0
+  - at: 5
+    check:
+      q: 0
+    offset_ns: 2
+  - at: 6
+    check:
+      q: 1
+  inputs:
+  - at: 4
+    set:
+      d: 1
+  - at: 4
+    offset_ns: 3
+    set:
+      d: 0
+  - at: 5
+    offset_ns: 2
+    set:
+      d: 1
+  name: hold_between_edges
+- expected:
+  - at: 5
+    check:
+      q: 1
+  - at: 5
+    check:
+      q: 1
+    offset_ns: 3
+  - at: 5
+    check:
+      q: 1
+    offset_ns: 7
+  - at: 6
+    check:
+      q: 0
+  - at: 6
+    check:
+      q: 0
+    offset_ns: 3
+  - at: 7
+    check:
+      q: 1
+  inputs:
+  - at: 4
+    set:
+      d: 1
+  - at: 5
+    offset_ns: 3
+    set:
+      rst: 1
+  - at: 6
+    offset_ns: 2
+    set:
+      rst: 0
+  name: sync_reset_waits_for_edge
+- expected:
+  - at: 2
+    check:
+      q: 0
+  name: reset_clears_q
+clock:
+  period_ns: 10
+  signal: clk
+reset:
+  active_low: false
+  duration_cycles: 3
+  signal: rst
+sim:
+  cycles: 40
+top: d_ff
+version: 1

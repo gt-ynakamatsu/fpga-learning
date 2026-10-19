@@ -306,6 +306,83 @@ class TestContentVisibility:
 
 
 @skip_if_no_playwright
+class TestBrowserQuiz:
+    """Playwright を使ったクイズの操作テスト（高優先度: disabled バグの検証）"""
+
+    def test_quiz_options_are_clickable(self, server_with_drafts):
+        """クイズの選択肢がクリックできること（disabled バグが修正済みであること）"""
+        from playwright.sync_api import sync_playwright
+
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page()
+            try:
+                page.goto(
+                    f"{server_with_drafts}/#lesson/chapter01/lesson01",
+                    timeout=15000,
+                )
+                # クイズセクションが表示されるまで待つ
+                page.wait_for_selector(".quiz-section", timeout=10000)
+
+                # 最初の選択肢が存在して disabled でないこと
+                option = page.locator(".quiz-option").first
+                assert not option.is_disabled(), (
+                    "クイズの選択肢が disabled になっています。"
+                    "app.js の h() 関数で undefined を属性値に渡していないか確認してください。"
+                )
+
+                # 選択肢をクリックできること
+                option.click()
+
+                # 解説が表示されること
+                page.wait_for_selector(".quiz-explanation.visible", timeout=5000)
+
+                # 「次の問題」ボタンが押せること
+                next_btn = page.locator("#quiz-next-btn")
+                assert not next_btn.is_disabled(), "「次の問題」ボタンが disabled です"
+                next_btn.click()
+
+                # 次の問題 or 結果画面が表示されること
+                page.wait_for_selector(".quiz-question, .quiz-result", timeout=5000)
+            finally:
+                browser.close()
+
+    def test_quiz_full_flow(self, server_with_drafts):
+        """クイズを全問回答して結果画面が表示されること"""
+        from playwright.sync_api import sync_playwright
+
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page()
+            try:
+                page.goto(
+                    f"{server_with_drafts}/#lesson/chapter01/lesson01",
+                    timeout=15000,
+                )
+                page.wait_for_selector(".quiz-section", timeout=10000)
+
+                # 全問に答える
+                for _ in range(10):  # 最大10問
+                    options = page.locator(".quiz-option:not([disabled])")
+                    if options.count() == 0:
+                        break
+                    options.first.click()
+                    page.wait_for_selector("#quiz-next-btn:not([disabled])", timeout=3000)
+                    next_btn = page.locator("#quiz-next-btn")
+                    next_btn.click()
+                    # 結果画面になったら終了
+                    if page.locator(".quiz-result").count() > 0:
+                        break
+
+                # 結果画面が表示されること
+                assert page.locator(".quiz-result").count() > 0 or \
+                       page.locator(".quiz-score-big").count() > 0, \
+                       "クイズ結果画面が表示されませんでした"
+            finally:
+                browser.close()
+
+
+@skip_if_no_playwright
 class TestBrowserHdlEditor:
     """Playwright を使ったブラウザレベルの HDL エディタテスト"""
 

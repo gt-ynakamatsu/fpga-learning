@@ -14,6 +14,7 @@ const h = (tag, attrs = {}, ...children) => {
   for (const [k, v] of Object.entries(attrs)) {
     if (k === 'class') el.className = v;
     else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+    else if (v === undefined || v === null || v === false) { /* 属性を付けない */ }
     else el.setAttribute(k, v);
   }
   for (const c of children) {
@@ -359,18 +360,27 @@ function _renderHdlResults(container, res) {
     const cEl = h('div', { class: 'hdl-case' });
     const icon = c.status === 'PASS' ? '✓' : c.status === 'SKIP' ? '⏭' : '✗';
     const cls = c.status === 'PASS' ? 'hdl-case-pass' : 'hdl-case-fail';
+    // ケース名は display_name（日本語）があればそちら、なければ内部名
+    const caseName = c.display_name || c.name;
     cEl.append(h('div', { class: 'hdl-case-header' },
-      h('span', { class: cls }, icon), h('span', {}, ` ケース: ${c.name} — ${c.status}`)));
-    for (const ck of (c.failed_checks || []))
+      h('span', { class: cls }, icon), h('span', {}, ` ${caseName} — ${c.status}`)));
+    for (const ck of (c.failed_checks || [])) {
+      const loc = ck.location || `サイクル ${ck.cycle}`;
       cEl.append(h('div', { class: 'hdl-check-detail' },
-        `  ${ck.signal}@cycle${ck.cycle}: 期待=${ck.expected} / 実際=${ck.actual}`));
+        `  ${ck.signal}（${loc}）: 期待=${ck.expected} / 実際=${ck.actual}`));
+    }
     container.append(cEl);
   }
   if (res.errors?.length) {
     const eb = h('div', { class: 'hdl-errors' });
-    for (const e of res.errors)
-      eb.append(h('div', { class: 'hdl-error-item' },
-        `[${e.severity}]${e.line ? ' 行' + e.line + ':' : ''} ${e.message}`));
+    const details = document.createElement('details');
+    details.append(Object.assign(document.createElement('summary'), { textContent: '❌ エラー詳細（クリックで展開）' }));
+    for (const e of res.errors) {
+      const msg = e.message.replace(/\/tmp\/[^/]+\//g, '');  // 一時パス除去
+      details.append(h('div', { class: 'hdl-error-item' },
+        `[${e.severity}]${e.line ? ' 行' + e.line + ':' : ''} ${msg}`));
+    }
+    eb.append(details);
     container.append(eb);
   }
   if (res.lint_hints?.length) {

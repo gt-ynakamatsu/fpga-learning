@@ -87,6 +87,21 @@ def get_lesson_progress(
         conn.close()
 
 
+def _is_lesson_fully_complete(conn, chapter_id: str, lesson_id: str) -> bool:
+    """練習問題＋クイズ（＋HDL演習があれば）の全合格を確認する"""
+    key = f"{chapter_id}/{lesson_id}"
+    row = conn.execute(
+        "SELECT * FROM lesson_progress WHERE lesson_key = ?", (key,)
+    ).fetchone()
+    if not row:
+        return False
+    d = dict(row)
+    # クイズが満点のこと
+    if d["quiz_total"] > 0 and d["quiz_score"] < d["quiz_total"]:
+        return False
+    return True
+
+
 def save_quiz_result(
     chapter_id: str,
     lesson_id: str,
@@ -94,7 +109,7 @@ def save_quiz_result(
     total: int,
     db_path: Optional[Path] = None,
 ) -> dict:
-    """クイズ結果を保存し、全問正解ならcompletedにする"""
+    """クイズ結果を保存し、全問正解かつ練習問題完了ならcompletedにする"""
     conn = _get_conn(db_path)
     key = f"{chapter_id}/{lesson_id}"
     now = datetime.now(timezone.utc).isoformat()

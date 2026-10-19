@@ -30,14 +30,34 @@ jobs:
 
       - name: deltasim v0.2.0 のインストール（§15 offset_ns サポート）
         run: |
-          pip install "git+https://github.com/gt-ynakamatsu/deltasim.git@v0.2.0" --quiet || \
-          pip install "git+https://github.com/gt-ynakamatsu/deltasim.git" --quiet || \
-          echo "deltasim インストール失敗（統合テストはスキップされます）"
+          pip install "git+https://github.com/gt-ynakamatsu/deltasim.git@v0.2.0"
+
+      - name: deltasim バージョン確認（0.2.0 以上であること）
+        shell: bash
+        run: |
+          VER=$(deltasim --version 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+          echo "deltasim version: $VER"
+          python3 -c "
+          import sys
+          ver = '$VER'
+          parts = tuple(int(x) for x in ver.split('.'))
+          if parts < (0, 2, 0):
+              print(f'ERROR: deltasim {ver} < 0.2.0 required')
+              sys.exit(1)
+          print(f'OK: deltasim {ver} >= 0.2.0')
+          "
+
+      - name: Playwright と Chromium のインストール
+        run: |
+          pip install playwright
+          playwright install chromium
 
       - name: ユニットテスト・統合テストの実行
         run: pytest tests/ --ignore=tests/test_e2e.py -v --tb=short
+        env:
+          REQUIRE_DELTASIM: "1"
 
-      - name: E2E テストの実行
+      - name: E2E テストの実行（Playwright 含む）
         run: pytest tests/test_e2e.py -v --tb=short
 
       - name: カバレッジレポート

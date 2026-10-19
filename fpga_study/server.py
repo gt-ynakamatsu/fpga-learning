@@ -7,7 +7,11 @@ import tempfile
 from pathlib import Path
 from typing import Any, Optional, Union
 
+import asyncio
+import concurrent.futures
+
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -92,6 +96,9 @@ class HdlGradeRequest(BaseModel):
 
 # ── アプリファクトリ ─────────────────────────────────────────────────
 
+_grading_semaphore = asyncio.Semaphore(1)  # 同時採点1件制限
+
+
 def create_app(
     db_path: Optional[Path] = None,
     show_drafts: bool = False,
@@ -116,9 +123,8 @@ def create_app(
     # ─── 章・レッスン ───────────────────────────────────
 
     @app.get("/api/chapters")
-    async def api_chapters(drafts: bool = Query(False, alias="show_drafts")) -> list[dict]:
-        show = show_drafts or drafts
-        chapters = _filter_chapters(load_chapters(), show)
+    async def api_chapters() -> list[dict]:
+        chapters = _filter_chapters(load_chapters(), show_drafts)
         for ch in chapters:
             ch.pop("_dir", None)
         return chapters
@@ -132,28 +138,37 @@ def create_app(
         return ch
 
     @app.get("/api/chapters/{chapter_id}/lessons")
-    async def api_lessons(
-        chapter_id: str, drafts: bool = Query(False, alias="show_drafts")
-    ) -> list[dict]:
-        show = show_drafts or drafts
+    async def api_lessons(chapter_id: str) -> list[dict]:
         lessons = load_lessons(chapter_id)
         if not lessons:
             raise HTTPException(status_code=404, detail="章が見つかりません")
-        lessons = _filter_lessons(lessons, show)
+        lessons = _filter_lessons(lessons, show_drafts)
         for ls in lessons:
             ls.pop("_dir", None)
         return lessons
+
+    def _check_visible(status: Optional[str], detail: str = "レッスンが見つかりません") -> None:
+        """show_drafts=False のとき draft/review は 404"""
+        if not show_drafts and status in ("draft", "review"):
+            raise HTTPException(status_code=404, detail=detail)
 
     @app.get("/api/chapters/{chapter_id}/lessons/{lesson_id}")
     async def api_lesson(chapter_id: str, lesson_id: str) -> dict:
         lesson = load_lesson(chapter_id, lesson_id)
         if not lesson:
             raise HTTPException(status_code=404, detail="レッスンが見つかりません")
-        # 演習データを追加
+        _check_visible(lesson.get("status"))
+        # 演習データを追加（正解は除去）
         exercise = load_exercise(chapter_id, lesson_id)
         if exercise:
             exercise.pop("_dir", None)
+            for prob in exercise.get("problems", []):
+                prob.pop("answer", None)   # 正解を返さない
         lesson["exercise"] = exercise
+        # クイズからも正解を除去
+        if lesson.get("quiz"):
+            for q in lesson["quiz"].get("questions", []):
+                q.pop("answer", None)
         lesson.pop("_dir", None)
         return lesson
 
@@ -182,12 +197,17 @@ def create_app(
     async def api_exercise_check(
         chapter_id: str, lesson_id: str, req: ExerciseCheckRequest
     ) -> dict:
+        lesson = load_lesson(chapter_id, lesson_id)
+        if lesson:
+            _check_visible(lesson.get("status"), "このレッスンは現在公開されていません")
         try:
             result = check_exercise_answer(
                 chapter_id, lesson_id, req.problem_id, req.answer
             )
             if result["correct"]:
                 save_exercise_result(chapter_id, lesson_id, "practice", True, db_path)
+            # 正解を返さない
+            result.pop("correct_answer", None)
             return result
         except FileNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc))
@@ -212,90 +232,118 @@ def create_app(
         chapter_id: str, lesson_id: str, req: HdlGradeRequest
     ) -> dict:
         """HDL 演習コードを deltasim で採点し、lint ヒントと合わせて返す"""
+        lesson_info = load_lesson(chapter_id, lesson_id)
+        if lesson_info:
+            _check_visible(lesson_info.get("status"), "このレッスンは現在公開されていません")
+
         exercise = load_exercise(chapter_id, lesson_id)
         if not exercise or exercise.get("type") != "hdl":
             raise HTTPException(status_code=404, detail="HDL演習が見つかりません")
 
-        # lint ヒント（採点に影響しない）
         lint_hints = lint_hdl(req.code)
 
-        # deltasim バージョン確認
         ok, ver, ver_msg = check_deltasim_requirement()
         if not ok:
             return {
                 "simulator_available": False,
                 "simulator_version_ok": False,
                 "version": ver,
-                "version_message": ver_msg,
+                "message": ver_msg,
                 "status": "SKIP",
                 "cases": [],
                 "errors": [],
                 "lint_hints": lint_hints,
-                "user_message": (
-                    f"deltasim {DELTASIM_MIN_VERSION} 以上が必要です。\n{ver_msg}"
-                ),
+                "user_message": f"deltasim {DELTASIM_MIN_VERSION} 以上が必要です。\n{ver_msg}",
             }
 
-        # spec.yaml のパスを取得
         spec_path = get_exercise_spec_path(chapter_id, lesson_id)
         if not spec_path or not spec_path.exists():
             raise HTTPException(status_code=404, detail="spec.yaml が見つかりません")
 
-        # 採点実行
-        with tempfile.TemporaryDirectory() as tmp:
-            code_path = Path(tmp) / "design.sv"
-            code_path.write_text(req.code, encoding="utf-8")
-
-            sim = DeltasimCLISimulator()
-            result = sim.run([code_path], spec_path)
-
-        # 進捗保存
-        if result.success:
-            save_exercise_result(chapter_id, lesson_id, "hdl", True, db_path)
-
-        # ケースごとの結果を整理
-        cases_out = []
-        for c in result.cases:
-            failed_checks = [
-                {
-                    "name": ch.name,
-                    "signal": ch.signal,
-                    "cycle": ch.cycle,
-                    "expected": ch.expected,
-                    "actual": ch.actual,
-                    "message": ch.message,
-                }
-                for ch in c.checks if ch.status != "PASS"
-            ]
-            cases_out.append({
-                "name": c.name,
-                "status": c.status,
-                "failed_checks": failed_checks,
-                "message": c.message,
-            })
-
-        errors_out = [
-            {
-                "file": e.file,
-                "line": e.line,
-                "severity": e.severity,
-                "message": e.message,
-                "code": e.code,
+        # 同時採点1件制限
+        if _grading_semaphore.locked():
+            return {
+                "simulator_available": True,
+                "simulator_version_ok": True,
+                "version": ver,
+                "message": ver_msg,
+                "status": "BUSY",
+                "cases": [],
+                "errors": [],
+                "lint_hints": lint_hints,
+                "user_message": "採点中です。しばらく待ってからもう一度お試しください。",
             }
-            for e in result.errors
-        ]
 
-        return {
-            "simulator_available": True,
-            "simulator_version_ok": True,
-            "version": ver,
-            "version_message": ver_msg,
-            "status": result.status,
-            "cases": cases_out,
-            "errors": errors_out,
-            "lint_hints": lint_hints,
-            "user_message": result.user_message,
-        }
+        async def _grade() -> dict:
+            async with _grading_semaphore:
+                with tempfile.TemporaryDirectory() as tmp:
+                    code_path = Path(tmp) / "design.sv"
+                    code_path.write_text(req.code, encoding="utf-8")
+                    sim = DeltasimCLISimulator()
+                    result = await run_in_threadpool(sim.run, [code_path], spec_path)
+
+                if result.success:
+                    save_exercise_result(chapter_id, lesson_id, "hdl", True, db_path)
+
+                # ケース名の日本語マッピング（exercise.yaml の case_descriptions）
+                case_descriptions = exercise.get("case_descriptions", {})
+
+                # ケースごとの結果（時刻を初心者向けに）
+                cases_out = []
+                for c in result.cases:
+                    failed_checks = []
+                    for ch in c.checks:
+                        if ch.status == "PASS":
+                            continue
+                        offset_ns = getattr(ch, "offset_ns", 0) or 0
+                        if offset_ns:
+                            loc = f"サイクル {ch.cycle} の途中（+{offset_ns}ns）"
+                        else:
+                            loc = f"サイクル {ch.cycle}"
+                        failed_checks.append({
+                            "name": ch.name,
+                            "signal": ch.signal,
+                            "cycle": ch.cycle,
+                            "offset_ns": offset_ns,
+                            "location": loc,
+                            "expected": ch.expected,
+                            "actual": ch.actual,
+                            "message": ch.message,
+                        })
+                    jp_name = case_descriptions.get(c.name, c.name)
+                    cases_out.append({
+                        "name": c.name,
+                        "display_name": jp_name,
+                        "status": c.status,
+                        "failed_checks": failed_checks,
+                        "message": c.message,
+                    })
+
+                # エラー（パスをファイル名のみに）
+                errors_out = []
+                for e in result.errors:
+                    fname = Path(e.file).name if e.file else ""
+                    errors_out.append({
+                        "file": fname,
+                        "line": e.line,
+                        "severity": e.severity,
+                        "message": e.message,
+                        "code": e.code,
+                    })
+
+                return {
+                    "simulator_available": True,
+                    "simulator_version_ok": True,
+                    "version": ver,
+                    "message": ver_msg,
+                    "status": result.status,
+                    "cases": cases_out,
+                    "errors": errors_out,
+                    "lint_hints": lint_hints,
+                    "user_message": result.user_message,
+                }
+
+        return await _grade()
 
     # ─── パズル ───────────────────────────────────────────
 

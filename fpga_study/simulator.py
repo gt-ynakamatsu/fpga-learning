@@ -339,14 +339,15 @@ class DeltasimCLISimulator:
                     cmd += ["--case", case_name]
 
             try:
-                subprocess.run(
+                proc = subprocess.run(
                     cmd,
                     capture_output=True,
                     text=True,
                     timeout=self._timeout,
                 )
                 raw = json_out.read_text(encoding="utf-8") if json_out.exists() else ""
-                return _parse_deltasim_result(raw)
+                stderr = proc.stderr or ""
+                return _parse_deltasim_result(raw, stderr)
             except subprocess.TimeoutExpired:
                 return SimulationResult(
                     success=False,
@@ -367,7 +368,7 @@ class DeltasimCLISimulator:
 # ── パーサ（一元化） ─────────────────────────────────────────────────────
 
 
-def _parse_deltasim_result(raw: str) -> SimulationResult:
+def _parse_deltasim_result(raw: str, stderr: str = "") -> SimulationResult:
     """
     deltasim CLI の --json 出力ファイルをパースする。
     【フォーマット仕様】は simulator.py モジュール冒頭を参照。
@@ -379,14 +380,25 @@ def _parse_deltasim_result(raw: str) -> SimulationResult:
     ⚠️ フォーマット変更時はここだけ修正すること。
     """
     if not raw.strip():
+        # stderr から組み合わせループや無限ループの兆候を確認
+        loop_keywords = ["combinational loop", "exceeded", "infinite loop", "SimError", "RecursionError"]
+        loop_detected = any(kw.lower() in stderr.lower() for kw in loop_keywords)
+        if loop_detected:
+            user_msg = (
+                "⚠️ 回路が終わらない書き方（組み合わせのループや無限ループ）の可能性があります。\n"
+                "コードを見直してください。\n"
+                "（例：`assign y = ~y;` のような自己参照は動きません）"
+            )
+        else:
+            user_msg = (
+                "❌ シミュレーション結果が取得できませんでした。\n"
+                "コードに組み合わせのループや無限ループがないか確認してください。"
+            )
         return SimulationResult(
             success=False,
             status="ERROR",
-            raw_output=raw,
-            user_message=(
-                "❌ シミュレーション結果が空でした。"
-                "deltasimが正常に実行されたか確認してください。"
-            ),
+            raw_output=stderr or raw,
+            user_message=user_msg,
         )
 
     try:
