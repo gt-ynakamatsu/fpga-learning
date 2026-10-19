@@ -94,13 +94,20 @@ PUZZLE_SCHEMA: dict[str, Any] = {
             },
             "minItems": 1,
         },
+        "type": {
+            "type": "string",
+            "enum": ["combinational", "sequential"],
+        },
         "available_gates": {
             "type": "array",
             "items": {
                 "type": "object",
                 "required": ["type", "count"],
                 "properties": {
-                    "type":  {"type": "string", "enum": ["AND", "OR", "NOT", "XOR", "NAND", "NOR"]},
+                    "type":  {
+                        "type": "string",
+                        "enum": ["AND", "OR", "NOT", "XOR", "NAND", "NOR", "DFF"],
+                    },
                     "count": {"type": "integer", "minimum": 1},
                 },
             },
@@ -111,7 +118,9 @@ PUZZLE_SCHEMA: dict[str, Any] = {
             "items": {
                 "type": "object",
                 "required": ["inputs", "outputs"],
+                "additionalProperties": True,
                 "properties": {
+                    "clock":   {"type": "integer", "minimum": 0},
                     "inputs":  {"type": "object"},
                     "outputs": {"type": "object"},
                 },

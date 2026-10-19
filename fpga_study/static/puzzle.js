@@ -13,7 +13,8 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
 
 const GATE_COLORS = {
   AND: '#4f46e5', OR: '#7c3aed', NOT: '#be185d', XOR: '#b45309',
-  NAND: '#0891b2', NOR: '#047857', INPUT: '#16a34a', OUTPUT: '#dc2626',
+  NAND: '#0891b2', NOR: '#047857', DFF: '#0369a1',
+  INPUT: '#16a34a', OUTPUT: '#dc2626',
 };
 
 /* ── ゲート形状パス (SVG path d 属性) ─────── */
@@ -31,6 +32,8 @@ function gateShape(type) {
       return 'M 10,4 L 50,4 Q 74,4 74,28 Q 74,52 50,52 L 10,52 Z';
     case 'NOR':
       return 'M 10,4 Q 30,4 60,28 Q 30,52 10,52 Q 24,28 10,4 Z';
+    case 'DFF':
+      return 'M 4,4 L 76,4 L 76,52 L 4,52 Z'; // 矩形（ラベルで区別）
     default:
       return 'M 4,4 L 76,4 L 76,52 L 4,52 Z';
   }
@@ -76,12 +79,17 @@ class PuzzleEditor {
     this.def = puzzleDef;
     this.chapterId = chapterId;
     this.lessonId = lessonId;
+    this.isSequential = (puzzleDef.type === 'sequential');
 
     this.nodes = [];
     this.wires = [];
     this.dragging = null;
     this.wiringFrom = null;
     this.passed = false;
+
+    // 順序回路用: DFF の Q 状態とクロック回数
+    this.dffStates = {};   // {nodeId: 0|1}
+    this.clockCycle = 0;
 
     this._nextId = 1;
     this._gateCountRemain = {};
@@ -116,6 +124,22 @@ class PuzzleEditor {
     resetBtn.textContent = '🔄 リセット';
     resetBtn.addEventListener('click', () => this._reset());
 
+    // 順序回路用: Clock ↑ ボタン
+    this.clockBtn = null;
+    this.cycleLabel = null;
+    if (this.isSequential) {
+      this.clockBtn = document.createElement('button');
+      this.clockBtn.className = 'btn btn-primary';
+      this.clockBtn.style.fontSize = '.85rem';
+      this.clockBtn.style.background = '#0369a1';
+      this.clockBtn.textContent = '⏱ Clock ↑';
+      this.clockBtn.addEventListener('click', () => this._clockTick());
+
+      this.cycleLabel = document.createElement('span');
+      this.cycleLabel.style.cssText = 'font-size:.85rem;color:var(--gray-500);align-self:center';
+      this.cycleLabel.textContent = 'サイクル: 0';
+    }
+
     const header = document.createElement('div');
     header.className = 'puzzle-header';
     const titleDiv = document.createElement('div');
@@ -125,6 +149,8 @@ class PuzzleEditor {
     toolbar.className = 'puzzle-toolbar';
     toolbarItems.forEach(b => toolbar.append(b));
     toolbar.append(resetBtn);
+    if (this.clockBtn) toolbar.append(this.clockBtn);
+    if (this.cycleLabel) toolbar.append(this.cycleLabel);
     header.append(titleDiv, toolbar);
 
     // キャンバス
@@ -278,16 +304,76 @@ class PuzzleEditor {
     this.wires = [];
     this.wiringFrom = null;
     this.passed = false;
+    this.dffStates = {};
+    this.clockCycle = 0;
     for (const g of this.def.available_gates || []) {
       this._gateCountRemain[g.type] = g.count;
     }
     this._updateCountBadges();
+    if (this.cycleLabel) this.cycleLabel.textContent = 'サイクル: 0';
     this._render();
     this.messageEl.className = 'puzzle-message';
     this.messageEl.textContent = 'ゲートを配置して配線し、「回路を確認」ボタンを押してください。';
-    // 真理値表のハイライトをリセット
     const rows = this.mountEl.querySelectorAll('#truth-table tbody tr');
     rows.forEach(r => { r.classList.remove('check-pass', 'check-fail'); });
+  }
+
+  /* ── クロックを1サイクル進める（順序回路用） ─── */
+  _clockTick() {
+    // 現在の D 入力を読んで DFF を更新
+    const newStates = {};
+    for (const node of this.nodes) {
+      if (node.type !== 'DFF') continue;
+      // input_0 (D ポート) に繋がっているワイヤを探して値を評価
+      const wire = this.wires.find(w => w.to_id === node.id && w.to_port_idx === 0);
+      if (wire) {
+        newStates[node.id] = this._evalNodeOutput(wire.from_id, wire.from_port_idx || 0, new Set());
+      } else {
+        newStates[node.id] = 0;
+      }
+    }
+    Object.assign(this.dffStates, newStates);
+    this.clockCycle++;
+    if (this.cycleLabel) this.cycleLabel.textContent = `サイクル: ${this.clockCycle}`;
+    this._render();
+
+    // DFF の Q 値表示を更新
+    this._updateDffLabels();
+  }
+
+  /* ── ノード出力値を簡易評価（フロントエンド表示用） ─── */
+  _evalNodeOutput(nodeId, portIdx, visited) {
+    if (visited.has(nodeId)) return 0;
+    visited.add(nodeId);
+
+    // 入力ノード
+    const inputNode = this.nodes.find(n => n.id === nodeId && n.type === 'INPUT');
+    if (inputNode) return 0; // フロントエンドでは入力値を変えられないのでデフォルト0
+
+    // DFF ノード: 記憶値を返す
+    if (this.dffStates.hasOwnProperty(nodeId)) return this.dffStates[nodeId] || 0;
+
+    const gateNode = this.nodes.find(n => n.id === nodeId);
+    if (!gateNode) return 0;
+
+    const inputs = this.wires
+      .filter(w => w.to_id === nodeId)
+      .map(w => this._evalNodeOutput(w.from_id, w.from_port_idx || 0, visited));
+
+    return _evalGateJS(gateNode.type, inputs);
+  }
+
+  /* ── DFF ゲートの Q ラベルを更新 ─── */
+  _updateDffLabels() {
+    for (const node of this.nodes) {
+      if (node.type !== 'DFF') continue;
+      const qVal = this.dffStates[node.id] || 0;
+      const labelEl = this.mountEl.querySelector(`#dff-q-label-${node.id}`);
+      if (labelEl) {
+        labelEl.textContent = `Q=${qVal}`;
+        labelEl.setAttribute('fill', qVal ? '#16a34a' : '#dc2626');
+      }
+    }
   }
 
   /* ── SVG 描画 ─────────────────────────── */
@@ -322,12 +408,26 @@ class PuzzleEditor {
       portEl.addEventListener('touchstart', e => { e.preventDefault(); this._endWire(node.id, 'input', 0, node.x - GATE_W/2 + px, node.y - GATE_H/2 + py); }, { passive: false });
       g.append(portEl);
     } else {
-      // 通常ゲート
+      // 通常ゲート（DFF含む）
       const color = GATE_COLORS[node.type] || '#6b7280';
-      const bg = node.type === 'NOT' || node.type === 'NAND' || node.type === 'NOR' ? '#fee2e2' : '#eef2ff';
+      const isDff = node.type === 'DFF';
+      const bg = isDff ? '#e0f2fe'
+        : (node.type === 'NOT' || node.type === 'NAND' || node.type === 'NOR') ? '#fee2e2' : '#eef2ff';
       const shape = svgEl('path', { d: gateShape(node.type), fill: bg, stroke: color, 'stroke-width': 2 });
       g.append(shape);
-      g.append(svgText(GATE_W/2, GATE_H/2, node.type, { fill: color, 'font-weight': 'bold', 'font-size': 10 }));
+      if (isDff) {
+        g.append(svgText(GATE_W/2, GATE_H/2 - 10, 'D-FF', { fill: color, 'font-weight': 'bold', 'font-size': 10 }));
+        const qVal = this.dffStates[node.id] || 0;
+        const qLabel = svgText(GATE_W/2, GATE_H/2 + 8, `Q=${qVal}`,
+          { fill: qVal ? '#16a34a' : '#dc2626', 'font-size': 9, id: `dff-q-label-${node.id}` });
+        g.append(qLabel);
+        // CLK マーク（三角）
+        const tri = svgEl('path', { d: `M ${GATE_W/2-6},${GATE_H-8} L ${GATE_W/2},${GATE_H-2} L ${GATE_W/2+6},${GATE_H-8}`,
+          fill: 'none', stroke: color, 'stroke-width': 1.5 });
+        g.append(tri);
+      } else {
+        g.append(svgText(GATE_W/2, GATE_H/2, node.type, { fill: color, 'font-weight': 'bold', 'font-size': 10 }));
+      }
 
       // 小さい×ボタン
       const delBtn = svgEl('circle', { cx: GATE_W - 4, cy: 4, r: 7, fill: '#dc2626', cursor: 'pointer', opacity: 0.8 });
@@ -338,11 +438,15 @@ class PuzzleEditor {
 
       // 入力ポート
       const inPorts = inputPorts(node.type);
+      const inPortLabels = isDff ? ['D'] : [];
       inPorts.forEach((p, i) => {
         const portEl = svgEl('circle', { cx: p.x, cy: p.y, r: PORT_R, fill: 'white', stroke: color, 'stroke-width': 2, cursor: 'crosshair' });
         portEl.addEventListener('mousedown', e => { e.stopPropagation(); this._endWire(node.id, 'input', i, node.x - GATE_W/2 + p.x, node.y - GATE_H/2 + p.y); });
         portEl.addEventListener('touchstart', e => { e.preventDefault(); this._endWire(node.id, 'input', i, node.x - GATE_W/2 + p.x, node.y - GATE_H/2 + p.y); }, { passive: false });
         g.append(portEl);
+        if (inPortLabels[i]) {
+          g.append(svgText(p.x + 10, p.y, inPortLabels[i], { fill: color, 'font-size': 8 }));
+        }
       });
 
       // 出力ポート
@@ -548,6 +652,19 @@ class PuzzleEditor {
 
 function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function _evalGateJS(type, inputs) {
+  if (!inputs.length) return 0;
+  switch (type.toUpperCase()) {
+    case 'AND':  return inputs.every(v => v === 1) ? 1 : 0;
+    case 'OR':   return inputs.some(v => v === 1) ? 1 : 0;
+    case 'NOT':  return inputs[0] === 1 ? 0 : 1;
+    case 'XOR':  return inputs.reduce((a, b) => a ^ b, 0);
+    case 'NAND': return inputs.every(v => v === 1) ? 0 : 1;
+    case 'NOR':  return inputs.some(v => v === 1) ? 0 : 1;
+    default:     return 0;
+  }
 }
 
 function showToast(msg, type = 'info', duration = 3500) {

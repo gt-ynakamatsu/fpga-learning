@@ -1,0 +1,9 @@
+id: chapter04
+title: "順序回路（フリップフロップ・クロック・カウンタ）"
+description: "状態を記憶できる回路の基本を学び、カウンタを作ろう"
+order: 4
+status: draft
+lessons:
+  - lesson01
+  - lesson02
+  - lesson03

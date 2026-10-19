@@ -77,6 +77,30 @@ class TestSchemaValidation:
                 "target_truth_table": [{"inputs": {"A": 0}, "outputs": {"Y": 0}}],
             })
 
+    def test_puzzle_dff_gate_type_valid(self):
+        """DFF はゲートタイプとして有効"""
+        validate_puzzle({
+            "id": "p1", "title": "DFF パズル",
+            "type": "sequential",
+            "inputs": [{"name": "D"}],
+            "outputs": [{"name": "Q"}],
+            "available_gates": [{"type": "DFF", "count": 1}],
+            "target_truth_table": [
+                {"clock": 0, "inputs": {"D": 1}, "outputs": {"Q": 0}},
+            ],
+        })
+
+    def test_puzzle_sequential_type_valid(self):
+        """type: sequential は有効"""
+        validate_puzzle({
+            "id": "p_seq", "title": "順序回路",
+            "type": "sequential",
+            "inputs": [{"name": "D"}],
+            "outputs": [{"name": "Q"}],
+            "available_gates": [{"type": "DFF", "count": 1}],
+            "target_truth_table": [{"clock": 0, "inputs": {"D": 0}, "outputs": {"Q": 0}}],
+        })
+
 
 class TestContentLoader:
     def test_load_chapters_returns_list(self, data_root):
@@ -118,6 +142,32 @@ class TestContentLoader:
     def test_load_nonexistent_lesson(self, data_root):
         lesson = load_lesson("chapter99", "lesson99", data_root)
         assert lesson is None
+
+    def test_load_chapter03_has_3_lessons(self, data_root):
+        lessons = load_lessons("chapter03", data_root)
+        assert len(lessons) == 3
+
+    def test_load_chapter03_lesson03_has_puzzle(self, data_root):
+        lesson = load_lesson("chapter03", "lesson03", data_root)
+        assert lesson is not None
+        assert lesson["puzzle"] is not None
+        assert lesson["puzzle"]["id"] == "puzzle_half_adder"
+
+    def test_load_chapter04_lesson03_sequential_puzzle(self, data_root):
+        lesson = load_lesson("chapter04", "lesson03", data_root)
+        assert lesson is not None
+        assert lesson["puzzle"] is not None
+        assert lesson["puzzle"].get("type") == "sequential"
+
+    def test_load_chapter05_has_3_lessons(self, data_root):
+        lessons = load_lessons("chapter05", data_root)
+        assert len(lessons) == 3
+
+    def test_all_5_chapters_load(self, data_root):
+        chapters = load_chapters(data_root)
+        ids = [ch["id"] for ch in chapters]
+        for cid in ["chapter01", "chapter02", "chapter03", "chapter04", "chapter05"]:
+            assert cid in ids
 
 
 class TestGateEval:

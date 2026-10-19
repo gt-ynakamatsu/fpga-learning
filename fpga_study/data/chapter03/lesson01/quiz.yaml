@@ -1,0 +1,41 @@
+status: draft
+questions:
+  - id: q1
+    question: "半加算器で A=1、B=1 のとき、SUM と CARRY はいくつですか？"
+    options:
+      - "SUM=0、CARRY=1"
+      - "SUM=1、CARRY=0"
+      - "SUM=1、CARRY=1"
+      - "SUM=2、CARRY=0"
+    answer: 0
+    explanation: "1+1=2ですが、1ビットでは2は表せません。SUM（XOR）=0、CARRY（AND）=1 で「10」（2進数の2）を表します。"
+
+  - id: q2
+    question: "半加算器の SUM 出力を作るゲートはどれですか？"
+    options:
+      - "ANDゲート"
+      - "ORゲート"
+      - "XORゲート"
+      - "NOTゲート"
+    answer: 2
+    explanation: "SUM（和）は XOR で計算します。A XOR B は「2つが違うとき1」なので、1+0=1、0+1=1、0+0=0、1+1=0（くり上がり）になります。"
+
+  - id: q3
+    question: "全加算器と半加算器の最大の違いは何ですか？"
+    options:
+      - "出力のビット数が違う"
+      - "全加算器は3つの入力（Cin含む）を受け取る"
+      - "全加算器はANDゲートを使わない"
+      - "半加算器の方が高速"
+    answer: 1
+    explanation: "全加算器は A、B に加えて前の桁からの桁上がり（Cin）も入力として受け取ります。これにより多ビット加算器に連鎖できます。"
+
+  - id: q4
+    question: "8ビットの加算器を全加算器で作るには何個の全加算器が必要ですか？"
+    options:
+      - "4個"
+      - "7個"
+      - "8個"
+      - "16個"
+    answer: 2
+    explanation: "8ビット加算器は全加算器を8個つなげて作ります（各ビット位置に1個）。最初のCinは0にします。"

@@ -185,9 +185,22 @@ def evaluate_circuit(
 ) -> dict:
     """
     回路を評価して真理値表と照合する。
+    puzzle の type が "sequential" の場合は順序回路として評価する。
     connections: [{from_id, from_port, to_id, to_port}, ...]
     gate_placements: [{id, type, x, y}, ...]
     """
+    puzzle_type = puzzle.get("type", "combinational")
+    if puzzle_type == "sequential":
+        return _evaluate_sequential(puzzle, connections, gate_placements)
+    return _evaluate_combinational(puzzle, connections, gate_placements)
+
+
+def _evaluate_combinational(
+    puzzle: dict,
+    connections: list[dict],
+    gate_placements: list[dict],
+) -> dict:
+    """組み合わせ回路を評価する"""
     target_rows = puzzle.get("target_truth_table", [])
     input_names = [i["name"] for i in puzzle.get("inputs", [])]
     output_names = [o["name"] for o in puzzle.get("outputs", [])]
@@ -222,28 +235,155 @@ def evaluate_circuit(
     return {"passed": passed, "failed_cases": failed_cases, "message": message}
 
 
+def _evaluate_sequential(
+    puzzle: dict,
+    connections: list[dict],
+    gate_placements: list[dict],
+) -> dict:
+    """
+    順序回路（DFFを含む）を評価する。
+    target_truth_table は clock フィールドで順序付けられる。
+    初期状態（clock=0）から順に DFF 状態を更新しながら検証する。
+    """
+    target_rows = sorted(
+        puzzle.get("target_truth_table", []),
+        key=lambda r: r.get("clock", 0),
+    )
+    input_names = [i["name"] for i in puzzle.get("inputs", [])]
+    output_names = [o["name"] for o in puzzle.get("outputs", [])]
+
+    # DFF ゲートの初期状態（すべて 0）
+    dff_states: dict[str, int] = {
+        g["id"]: 0
+        for g in gate_placements
+        if g.get("type") == "DFF"
+    }
+
+    failed_cases: list[dict] = []
+
+    for row in target_rows:
+        clock = row.get("clock", 0)
+        input_vals: dict[str, int] = row["inputs"]
+        expected_outputs: dict[str, int] = row["outputs"]
+
+        # 現在の DFF 状態で回路を評価
+        actual_outputs = _simulate_circuit(
+            input_vals, input_names, output_names,
+            connections, gate_placements, dff_states,
+        )
+
+        for out_name in output_names:
+            expected = expected_outputs.get(out_name, -1)
+            actual = actual_outputs.get(out_name, -1)
+            if actual != expected:
+                failed_cases.append({
+                    "clock": clock,
+                    "inputs": input_vals,
+                    "output": out_name,
+                    "expected": expected,
+                    "actual": actual,
+                })
+
+        # クロックを1回進める: DFF の D 入力を次の Q に
+        new_dff_states: dict[str, int] = {}
+        for gate in gate_placements:
+            if gate.get("type") != "DFF":
+                continue
+            gate_id = gate["id"]
+            d_val = _get_dff_d_input(gate_id, input_vals, connections, gate_placements, dff_states)
+            new_dff_states[gate_id] = d_val
+        dff_states = new_dff_states if new_dff_states else dff_states
+
+    passed = len(failed_cases) == 0
+    if passed:
+        message = "🎉 全クロックサイクル合格！順序回路が正しく動作しています！"
+    else:
+        message = f"❌ {len(failed_cases)}サイクルが不合格です。DFFの配線を確認してみましょう。"
+
+    return {"passed": passed, "failed_cases": failed_cases, "message": message}
+
+
+def _get_dff_d_input(
+    gate_id: str,
+    input_vals: dict[str, int],
+    connections: list[dict],
+    gate_placements: list[dict],
+    dff_states: dict[str, int],
+) -> int:
+    """DFF の D 入力ポート（input_0）に接続されている値を取得する"""
+    gates = {g["id"]: g for g in gate_placements}
+
+    for c in connections:
+        if c["to_id"] == gate_id and c.get("to_port", "input_0") == "input_0":
+            return _get_node_output(
+                c["from_id"], c.get("from_port", "output_0"),
+                input_vals, connections, gate_placements, dff_states, set(),
+            )
+    return 0
+
+
+def _get_node_output(
+    node_id: str,
+    port: str,
+    input_vals: dict[str, int],
+    connections: list[dict],
+    gate_placements: list[dict],
+    dff_states: dict[str, int],
+    visited: set,
+) -> int:
+    """再帰的にノードの出力値を取得する"""
+    # 入力ノード
+    for name, val in input_vals.items():
+        if node_id == f"input_{name}":
+            return val
+
+    if node_id in visited:
+        return 0
+    visited = visited | {node_id}
+
+    gates = {g["id"]: g for g in gate_placements}
+    gate = gates.get(node_id)
+    if gate is None:
+        return 0
+
+    gate_type = gate.get("type", "")
+
+    # DFF の出力は記憶された Q 値を返す（D 入力は見ない）
+    if gate_type == "DFF":
+        return dff_states.get(node_id, 0)
+
+    # 他のゲートは入力ポートを再帰評価
+    gate_inputs: list[int] = []
+    for c in connections:
+        if c["to_id"] == node_id:
+            val = _get_node_output(
+                c["from_id"], c.get("from_port", "output_0"),
+                input_vals, connections, gate_placements, dff_states, visited,
+            )
+            gate_inputs.append(val)
+
+    return _eval_gate(gate_type, gate_inputs) if gate_inputs else 0
+
+
 def _simulate_circuit(
     input_vals: dict[str, int],
     input_names: list[str],
     output_names: list[str],
     connections: list[dict],
     gate_placements: list[dict],
+    dff_states: Optional[dict[str, int]] = None,
 ) -> dict[str, int]:
     """
-    接続情報からトポロジカルソート後に回路を評価する。
-    各ノードの出力値を返す。
+    接続情報から回路を評価する。
+    dff_states: DFF ゲートの現在の Q 値（順序回路用）
     """
+    dff_states = dff_states or {}
     node_values: dict[str, dict[str, int]] = {}
 
     for name in input_names:
         node_values[f"input_{name}"] = {"output_0": input_vals.get(name, 0)}
 
     gates = {g["id"]: g for g in gate_placements}
-
-    conn_map: dict[tuple[str, str], list[tuple[str, str]]] = {}
-    for c in connections:
-        key = (c["from_id"], c.get("from_port", "output_0"))
-        conn_map.setdefault(key, []).append((c["to_id"], c.get("to_port", "input_0")))
 
     def get_value(node_id: str, port: str, visited: set[str]) -> int:
         if node_id in node_values and port in node_values[node_id]:
@@ -262,14 +402,18 @@ def _simulate_circuit(
             return 0
 
         gate_type = gate.get("type", "")
-        input_ports = ["input_0", "input_1", "input_2"]
-        gate_inputs: list[int] = []
 
-        for in_port in input_ports:
-            for (from_id, from_port), targets in conn_map.items():
-                for (to_id, to_port) in targets:
-                    if to_id == node_id and to_port == in_port:
-                        gate_inputs.append(get_value(from_id, from_port, visited))
+        # DFF の出力は記憶済みの Q 値（D 入力を評価しない）
+        if gate_type == "DFF":
+            q = dff_states.get(node_id, 0)
+            node_values.setdefault(node_id, {})["output_0"] = q
+            return q
+
+        gate_inputs: list[int] = []
+        for c in connections:
+            if c["to_id"] == node_id:
+                val = get_value(c["from_id"], c.get("from_port", "output_0"), visited)
+                gate_inputs.append(val)
 
         if not gate_inputs:
             return 0

@@ -10,60 +10,76 @@
 【deltasim CLI 呼び出し形式 (docs/api.md §2.2 準拠)】
 
   deltasim test <RTLファイル...> --spec <仕様YAML> --json <出力パス>
-  オプション: --top <モジュール名>  --seed <整数>  --json-events (進捗をJSONLines)
+  オプション: --top <モジュール名>  --seed <整数>
+              --record all          (全信号記録; 旧 --record-all は非推奨)
+              --wave-mem <MB>       (波形メモリ上限 MB)
+              --case <パターン>      (fnmatch ワイルドカード対応、複数指定可)
+              --json-events         (進捗をJSON Linesでstdoutへ、現バージョン未使用)
 
-  --json はファイルパスを指定する（stdoutには書き込まれない）。
+  --json はファイルパスを指定する（stdoutではない）。
 
-【出力JSON フォーマット (docs/api.md §2.2 準拠、schema_version "1")】
+【出力JSON フォーマット (docs/api.md §2.2 / §13.2 準拠、schema_version "2")】
 
   {
-    "schema_version": "1",          ← バージョン確認必須
+    "schema_version": "2",           ← メジャー番号が変わったときだけ警告
     "module":        "counter",
-    "status":        "PASS",        ← PASS / FAIL / ERROR / SKIP
+    "status":        "PASS",         ← PASS / FAIL / ERROR / SKIP
     "seed":          42,
-    "elapsed_ms":    12.3,
+    "elapsed_ms":    50.3,           ← 非推奨。summary.elapsed_ms と同値
+    "summary": {"elapsed_ms": 50.3}, ← 全体実行時間（推奨）
     "cancelled":     false,
     "log":           [],
-    "checks": [
+    "cases": [                       ← テストケースごとの結果（新規）
       {
-        "name":       "count@cycle11[spec]",
-        "status":     "PASS",       ← PASS / FAIL / ERROR / SKIP
-        "signal":     "count",
-        "cycle":      11,
-        "time_ns":    110,
-        "expected":   "00000001",   ← 4値文字列(0/1/x/z)、MSB先頭
-        "actual":     "00000001",
-        "source":     "spec",
+        "name":       "basic",
+        "status":     "PASS",
         "seed":       42,
-        "elapsed_ms": 0.5,
-        "message":    null
+        "elapsed_ms": 12.3,
+        "message":    null,
+        "checks": [
+          {
+            "name":       "count@cycle11[spec]",
+            "status":     "PASS",
+            "signal":     "count",
+            "cycle":      11,
+            "time_ns":    110,
+            "expected":   "00000001",  ← 4値文字列(0/1/x/z)、MSB先頭、小文字
+            "actual":     "00000001",
+            "source":     "spec",
+            "seed":       42,
+            "elapsed_ms": 0.5,
+            "message":    null
+          }
+        ],
+        "log": []
       }
     ],
-    "errors": [
-      {
-        "file":     "counter.sv",
-        "line":     5,
-        "column":   3,
-        "severity": "error",
-        "message":  "expected ';', got '?'",
-        "code":     "E001"
-      }
-    ]
+    "checks": [...],   ← 全ケース集計（後方互換）
+    "errors": []
   }
 
-【近日変更予定（互換のため未知フィールドは無視する）】
-  - テストケース単位の集計フィールド追加
-  - summary.elapsed_ms 追加
-  - Z 値を小文字 "z" で X ("x") と区別
+【schema_version バージョン確認方針】
+  メジャーバージョン（先頭の数字、"." より前の部分）が異なる場合のみ警告。
+  "2" と "2.1" は同じメジャーなので互換。"3" は非互換として案内を出す。
 
-【利用するフィールドは status / checks / errors のみ】
-  schema_version を確認し、非対応バージョンは初心者向け案内を出す。
-  パーサは _parse_deltasim_result() に一元化。
+【近日変更予定への対応】
+  - cases[].message フィールド追加済み
+  - truncated_at（波形記録停止時刻）は無視
+  - 未知フィールドは常に無視する
+
+【E_NO_CASE エラー (docs/api.md §14.1)】
+  --case フィルタがいずれのケースにも一致しない場合:
+  status="ERROR", cases=[], errors=[{code:"E_NO_CASE", ...}]
+  初心者向けメッセージを表示する。
+
+【利用するフィールド】
+  status / cases / checks / errors / summary.elapsed_ms
+  パーサは _parse_deltasim_result() に一元化。フォーマット変更時はここだけ修正。
 
 【将来の拡張ポイント】
-  - DeltasimPythonAPISimulator: deltasim Python API (ds.test()) を直接呼ぶ
-  - BoardSimulator: 実機ボード対応
-  factory 関数 get_default_simulator() でクラスを切り替える。
+  DeltasimPythonAPISimulator : deltasim Python API (ds.test()) 直接呼び出し
+  BoardSimulator             : 実機ボード対応
+  get_default_simulator() で切り替える。
 """
 
 from __future__ import annotations
@@ -75,7 +91,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional, Protocol, runtime_checkable
 
-SUPPORTED_SCHEMA_VERSION = "1"
+SUPPORTED_SCHEMA_MAJOR = "2"
+"""対応するスキーマのメジャーバージョン。先頭の数字が変わったときだけ非互換扱い。"""
+
+
+# ── データクラス ────────────────────────────────────────────────────────
 
 
 @dataclass
@@ -86,8 +106,20 @@ class CheckResult:
     signal: str
     cycle: int
     time_ns: int
-    expected: str         # 4値文字列 (MSB先頭)
-    actual: str           # 4値文字列 (MSB先頭)
+    expected: str         # 4値文字列 (MSB先頭、小文字)
+    actual: str
+    message: Optional[str] = None
+
+
+@dataclass
+class CaseResult:
+    """テストケース1件の結果 (cases[] の要素、docs/api.md §13.2)"""
+    name: str
+    status: str           # "PASS" / "FAIL" / "ERROR" / "SKIP"
+    seed: Optional[int]
+    elapsed_ms: float
+    checks: list[CheckResult] = field(default_factory=list)
+    log: list[str] = field(default_factory=list)
     message: Optional[str] = None
 
 
@@ -104,19 +136,27 @@ class ErrorDetail:
 
 @dataclass
 class SimulationResult:
-    """シミュレーション結果 (test() / deltasim test --json の構造に対応)"""
+    """
+    シミュレーション結果。
+    test() の戻り値 / deltasim test --json の構造に対応。
+    """
     success: bool
-    status: str = "ERROR"  # "PASS" / "FAIL" / "ERROR" / "SKIP"
+    status: str = "ERROR"   # "PASS" / "FAIL" / "ERROR" / "SKIP"
+    cases: list[CaseResult] = field(default_factory=list)
     checks: list[CheckResult] = field(default_factory=list)
     errors: list[ErrorDetail] = field(default_factory=list)
+    summary_elapsed_ms: Optional[float] = None   # summary.elapsed_ms（推奨）
     raw_output: str = ""
     user_message: str = ""
     """初心者向けのわかりやすいメッセージ"""
 
 
+# ── Simulator プロトコル ─────────────────────────────────────────────────
+
+
 @runtime_checkable
 class Simulator(Protocol):
-    """シミュレータの共通インターフェース (Protocolクラス)"""
+    """シミュレータの共通インターフェース (Protocol クラス)"""
 
     def run(
         self,
@@ -124,6 +164,9 @@ class Simulator(Protocol):
         spec_yaml: Path,
         top: Optional[str] = None,
         seed: Optional[int] = None,
+        record_all: bool = False,
+        wave_mem_mb: Optional[int] = None,
+        filter_cases: Optional[list[str]] = None,
     ) -> SimulationResult:
         """RTLファイルと仕様YAMLを受け取りシミュレーションを実行する"""
         ...
@@ -131,6 +174,9 @@ class Simulator(Protocol):
     def is_available(self) -> bool:
         """シミュレータが利用可能かどうかを返す"""
         ...
+
+
+# ── 実装クラス ──────────────────────────────────────────────────────────
 
 
 class StubSimulator:
@@ -145,6 +191,9 @@ class StubSimulator:
         spec_yaml: Path,
         top: Optional[str] = None,
         seed: Optional[int] = None,
+        record_all: bool = False,
+        wave_mem_mb: Optional[int] = None,
+        filter_cases: Optional[list[str]] = None,
     ) -> SimulationResult:
         return SimulationResult(
             success=False,
@@ -161,8 +210,7 @@ class StubSimulator:
 
 class DeltasimCLISimulator:
     """
-    deltasim CLI (`deltasim test <files> --spec <yaml> --json <out>`) を
-    別プロセスで呼び出す薄い連携クラス。
+    deltasim CLI を別プロセスで呼び出す薄い連携クラス。
 
     deltasim がインストールされていない環境では is_available() が False を返し、
     run() は初心者向けメッセージを含む失敗結果を返す（例外は発生しない）。
@@ -191,6 +239,9 @@ class DeltasimCLISimulator:
         spec_yaml: Path,
         top: Optional[str] = None,
         seed: Optional[int] = None,
+        record_all: bool = False,
+        wave_mem_mb: Optional[int] = None,
+        filter_cases: Optional[list[str]] = None,
     ) -> SimulationResult:
         if not self.is_available():
             return SimulationResult(
@@ -214,9 +265,16 @@ class DeltasimCLISimulator:
                 cmd += ["--top", top]
             if seed is not None:
                 cmd += ["--seed", str(seed)]
+            if record_all:
+                cmd += ["--record", "all"]   # 旧 --record-all は非推奨
+            if wave_mem_mb is not None:
+                cmd += ["--wave-mem", str(wave_mem_mb)]
+            if filter_cases:
+                for case_name in filter_cases:
+                    cmd += ["--case", case_name]
 
             try:
-                proc = subprocess.run(
+                subprocess.run(
                     cmd,
                     capture_output=True,
                     text=True,
@@ -241,14 +299,17 @@ class DeltasimCLISimulator:
                 )
 
 
+# ── パーサ（一元化） ─────────────────────────────────────────────────────
+
+
 def _parse_deltasim_result(raw: str) -> SimulationResult:
     """
     deltasim CLI の --json 出力ファイルをパースする。
     【フォーマット仕様】は simulator.py モジュール冒頭を参照。
 
-    利用するフィールドは status / checks / errors のみ。
-    未知のフィールドは無視する。schema_version を確認し、
-    非対応バージョンは初心者向け案内を表示する。
+    利用するフィールド: status / cases / checks / errors / summary.elapsed_ms
+    未知のフィールドは無視する。
+    schema_version のメジャー番号が異なる場合のみ警告を表示する。
 
     ⚠️ フォーマット変更時はここだけ修正すること。
     """
@@ -257,7 +318,10 @@ def _parse_deltasim_result(raw: str) -> SimulationResult:
             success=False,
             status="ERROR",
             raw_output=raw,
-            user_message="❌ シミュレーション結果が空でした。deltasimが正常に実行されたか確認してください。",
+            user_message=(
+                "❌ シミュレーション結果が空でした。"
+                "deltasimが正常に実行されたか確認してください。"
+            ),
         )
 
     try:
@@ -271,68 +335,120 @@ def _parse_deltasim_result(raw: str) -> SimulationResult:
         )
 
     schema_ver = str(data.get("schema_version", ""))
-    if schema_ver != SUPPORTED_SCHEMA_VERSION:
+    compat_warning = _check_schema_compat(schema_ver)
+    if compat_warning:
         return SimulationResult(
             success=False,
             status="ERROR",
             raw_output=raw,
-            user_message=(
-                f"⚠️ シミュレータのバージョンが対応していません "
-                f"(schema_version={schema_ver!r}, 対応: {SUPPORTED_SCHEMA_VERSION!r})。\n"
-                "アプリを最新版に更新してください。"
-            ),
+            user_message=compat_warning,
         )
 
     status = data.get("status", "ERROR")
     success = status == "PASS"
 
-    checks: list[CheckResult] = []
-    for c in data.get("checks", []):
-        checks.append(CheckResult(
-            name=c.get("name", ""),
-            status=c.get("status", "ERROR"),
-            signal=c.get("signal", ""),
-            cycle=c.get("cycle", 0),
-            time_ns=c.get("time_ns", 0),
-            expected=c.get("expected", ""),
-            actual=c.get("actual", ""),
-            message=c.get("message"),
-        ))
+    summary = data.get("summary") or {}
+    summary_elapsed_ms: Optional[float] = summary.get("elapsed_ms")
 
-    errors: list[ErrorDetail] = []
-    for e in data.get("errors", []):
-        errors.append(ErrorDetail(
-            file=e.get("file", ""),
-            line=e.get("line", 0),
-            column=e.get("column", 0),
-            severity=e.get("severity", "error"),
-            message=e.get("message", ""),
-            code=e.get("code", ""),
-        ))
+    cases: list[CaseResult] = []
+    for c in data.get("cases", []):
+        cases.append(_parse_case(c))
 
-    user_message = _build_user_message(success, status, checks, errors)
+    checks: list[CheckResult] = [_parse_check(c) for c in data.get("checks", [])]
+
+    errors: list[ErrorDetail] = [_parse_error(e) for e in data.get("errors", [])]
+
+    user_message = _build_user_message(success, status, cases, checks, errors)
 
     return SimulationResult(
         success=success,
         status=status,
+        cases=cases,
         checks=checks,
         errors=errors,
+        summary_elapsed_ms=summary_elapsed_ms,
         raw_output=raw,
         user_message=user_message,
     )
 
 
+def _parse_case(c: dict) -> CaseResult:
+    return CaseResult(
+        name=c.get("name", ""),
+        status=c.get("status", "ERROR"),
+        seed=c.get("seed"),
+        elapsed_ms=float(c.get("elapsed_ms", 0.0)),
+        checks=[_parse_check(ch) for ch in c.get("checks", [])],
+        log=list(c.get("log", [])),
+        message=c.get("message"),
+    )
+
+
+def _parse_check(c: dict) -> CheckResult:
+    return CheckResult(
+        name=c.get("name", ""),
+        status=c.get("status", "ERROR"),
+        signal=c.get("signal", ""),
+        cycle=c.get("cycle", 0),
+        time_ns=c.get("time_ns", 0),
+        expected=c.get("expected", ""),
+        actual=c.get("actual", ""),
+        message=c.get("message"),
+    )
+
+
+def _parse_error(e: dict) -> ErrorDetail:
+    return ErrorDetail(
+        file=e.get("file", ""),
+        line=e.get("line", 0),
+        column=e.get("column", 0),
+        severity=e.get("severity", "error"),
+        message=e.get("message", ""),
+        code=e.get("code", ""),
+    )
+
+
+def _check_schema_compat(schema_ver: str) -> Optional[str]:
+    """
+    メジャーバージョン（"." 前の数字）が一致するかチェックする。
+    不一致の場合は初心者向けメッセージを返す。
+    """
+    actual_major = str(schema_ver).split(".")[0] if schema_ver else ""
+    if actual_major != SUPPORTED_SCHEMA_MAJOR:
+        return (
+            f"⚠️ シミュレータの結果バージョンが対応していません "
+            f"(schema_version={schema_ver!r}, 対応メジャー: {SUPPORTED_SCHEMA_MAJOR})。\n"
+            "アプリを最新版に更新してください。"
+        )
+    return None
+
+
 def _build_user_message(
     success: bool,
     status: str,
+    cases: list[CaseResult],
     checks: list[CheckResult],
     errors: list[ErrorDetail],
 ) -> str:
-    if success:
-        return f"✅ テスト合格！ ({len(checks)}件全て通過)"
-
     if status == "SKIP":
         return "⏭️ テストはスキップされました。"
+
+    # E_NO_CASE: --case フィルタがどのケースにも一致しなかった
+    for e in errors:
+        if e.code == "E_NO_CASE":
+            pattern = e.message or ""
+            return (
+                "⚠️ 指定したケース名がどのテストケースにも一致しませんでした。\n"
+                f"指定パターン: {pattern}\n"
+                "ケース名（YAML の cases[].name）を確認してください。"
+            )
+
+    if success:
+        case_summary = ""
+        if cases:
+            case_summary = f" ({len(cases)}ケース全て通過)"
+        total = len(checks) if not cases else sum(len(c.checks) for c in cases)
+        return f"✅ テスト合格！{case_summary}"
 
     lines: list[str] = []
 
@@ -343,12 +459,28 @@ def _build_user_message(
             lines.append(f"  [{e.severity}] {loc} — {_friendly_error(e.message)}")
         if len(errors) > 5:
             lines.append(f"  （他 {len(errors) - 5} 件）")
+    elif cases:
+        failed_cases = [c for c in cases if c.status not in ("PASS", "SKIP")]
+        lines.append(f"❌ {len(failed_cases)}ケースが不合格です：")
+        for c in failed_cases[:5]:
+            failed_checks = [ch for ch in c.checks if ch.status != "PASS"]
+            detail = ""
+            if failed_checks:
+                fc = failed_checks[0]
+                detail = (
+                    f" — {fc.signal}(サイクル{fc.cycle}): "
+                    f"期待={fc.expected} / 実際={fc.actual}"
+                )
+            lines.append(f"  [{c.status}] {c.name}{detail}")
+        if len(failed_cases) > 5:
+            lines.append(f"  （他 {len(failed_cases) - 5} ケース）")
     elif status == "FAIL":
         failed = [c for c in checks if c.status != "PASS"]
         lines.append(f"❌ {len(failed)}件のチェックが不合格です：")
         for c in failed[:5]:
             lines.append(
-                f"  {c.signal} (サイクル{c.cycle}): 期待={c.expected} / 実際={c.actual}"
+                f"  {c.signal} (サイクル{c.cycle}): "
+                f"期待={c.expected} / 実際={c.actual}"
             )
         if len(failed) > 5:
             lines.append(f"  （他 {len(failed) - 5} 件）")
@@ -359,19 +491,16 @@ def _build_user_message(
 
 
 def _friendly_error(message: str) -> str:
-    """
-    エラーメッセージを初心者向けに言い換える。
-    技術的なキーワードを検知して補足説明を付ける。
-    """
+    """エラーメッセージを初心者向けに言い換える"""
     lower = message.lower()
     hints = [
-        ("syntax error",      "書き方のミスがあります（文法エラー）"),
-        ("expected ';'",      "セミコロン ';' が抜けています"),
-        ("undeclared",        "宣言されていない信号や変数を使っています"),
-        ("undefined",         "定義されていないものを参照しています"),
-        ("timeout",           "処理が時間内に終わりませんでした"),
-        ("connection refused","シミュレータに接続できませんでした"),
-        ("multiple drivers",  "複数の箇所から同じ信号を制御しています"),
+        ("syntax error",       "書き方のミスがあります（文法エラー）"),
+        ("expected ';'",       "セミコロン ';' が抜けています"),
+        ("undeclared",         "宣言されていない信号や変数を使っています"),
+        ("undefined",          "定義されていないものを参照しています"),
+        ("timeout",            "処理が時間内に終わりませんでした"),
+        ("connection refused", "シミュレータに接続できませんでした"),
+        ("multiple drivers",   "複数の箇所から同じ信号を制御しています"),
     ]
     for keyword, friendly in hints:
         if keyword in lower:
