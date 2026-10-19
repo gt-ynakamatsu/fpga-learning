@@ -321,6 +321,46 @@ class TestWrongCodesManifest:
             pytest.fail(f"manifest.yaml の expected 値が不明: {expected!r}")
 
 
+# ── 全 spec.yaml のゼロ warnings 確認 ────────────────────────────────
+
+
+@skip_if_no_deltasim
+class TestSpecZeroWarnings:
+    """
+    全レッスンの spec.yaml + answer.sv を deltasim で実行し、
+    warnings が空であることを確認する。
+
+    これにより spec.yaml のキー誤記（W_UNKNOWN_KEY）を早期検出できる。
+    警告判定は code フィールドのみで行い、message はパースしない。
+    """
+
+    @pytest.mark.parametrize(
+        "chapter,lesson",
+        [
+            (ch.name, ls.name)
+            for ch in sorted(DATA_ROOT.iterdir()) if ch.is_dir()
+            for ls in sorted(ch.iterdir()) if ls.is_dir()
+            if (ls / "spec.yaml").exists() and (ls / "answer.sv").exists()
+        ],
+        ids=lambda x: x if isinstance(x, str) else None,
+    )
+    def test_spec_produces_zero_warnings(self, chapter: str, lesson: str) -> None:
+        spec = DATA_ROOT / chapter / lesson / "spec.yaml"
+        answer = DATA_ROOT / chapter / lesson / "answer.sv"
+        result = run_deltasim_test(answer, spec)
+
+        warnings = result.get("warnings") or []
+        warning_codes = [w.get("code", "") for w in warnings]
+
+        assert warnings == [], (
+            f"[spec.yaml に警告が発生しました] {chapter}/{lesson}\n"
+            f"警告コード: {warning_codes}\n"
+            f"警告メッセージ（参考）: {[w.get('message') for w in warnings]}\n"
+            f"spec.yaml のキー名を確認してください。W_UNKNOWN_KEY は不明なキーを示します。\n"
+            f"判定は code フィールドのみで行います（message はパース不要）。"
+        )
+
+
 # ── deltasim バージョン確認 ────────────────────────────────────────────
 
 

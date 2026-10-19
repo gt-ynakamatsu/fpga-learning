@@ -28,9 +28,9 @@ jobs:
       - name: 依存パッケージのインストール
         run: pip install ".[dev]"
 
-      - name: deltasim b482527 のインストール（§15 offset_ns サポート）
+      - name: deltasim 748164e のインストール（§15 offset_ns サポート）
         run: |
-          pip install "git+https://github.com/gt-ynakamatsu/deltasim.git@b482527" --quiet || \
+          pip install "git+https://github.com/gt-ynakamatsu/deltasim.git@748164e" --quiet || \
           pip install "git+https://github.com/gt-ynakamatsu/deltasim.git" --quiet || \
           echo "deltasim インストール失敗（統合テストはスキップされます）"
 

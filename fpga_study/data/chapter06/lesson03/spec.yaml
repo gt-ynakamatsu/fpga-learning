@@ -3,7 +3,6 @@ top: d_ff
 clock: {signal: clk, period_ns: 10}
 reset: {signal: rst, active_low: false, duration_cycles: 3}
 sim: {cycles: 40}
-seed: 42
 cases:
   - name: same_cycle_capture
     inputs:

@@ -366,7 +366,8 @@ def _parse_deltasim_result(raw: str) -> SimulationResult:
 
     errors: list[ErrorDetail] = [_parse_error(e) for e in data.get("errors", [])]
 
-    # §15.12: warnings は常に存在する可能性がある（None または空リスト）
+    # §15.12: warnings は常に存在する（748164e 以降は常に空リストまたはリスト）
+    # 旧バージョン互換のため None または absent の場合も空リストとして扱う
     raw_warnings = data.get("warnings") or []
     warnings: list[WarningDetail] = [_parse_warning(w) for w in raw_warnings]
 
