@@ -41,19 +41,19 @@ def _get_installed_version():
     except Exception:
         return None
 
-def _is_v021_or_later() -> bool:
+def _is_v022_or_later() -> bool:
     ver = _get_installed_version()
     if not ver:
         return False
     try:
-        return tuple(int(x) for x in ver.split(".")) >= (0, 2, 1)
+        return tuple(int(x) for x in ver.split(".")) >= (0, 2, 2)
     except ValueError:
         return False
 
 
-DELTASIM_V021_OR_LATER = _is_v021_or_later()
+DELTASIM_V022_OR_LATER = _is_v022_or_later()
 # backward compat alias
-DELTASIM_V021_OR_LATER = DELTASIM_V021_OR_LATER
+DELTASIM_V021_OR_LATER = DELTASIM_V022_OR_LATER
 
 _REQUIRE_DELTASIM = os.environ.get("REQUIRE_DELTASIM", "0") == "1"
 
@@ -62,14 +62,18 @@ skip_if_no_deltasim = pytest.mark.skipif(
     reason="deltasim がインストールされていません（pip install deltasim）",
 )
 
-
-require_v020 = pytest.mark.skipif(
-    not DELTASIM_V021_OR_LATER,
-    reason=(
-        "deltasim 0.2.1 以上が必要です。"
-        " pip install 'git+https://github.com/gt-ynakamatsu/deltasim.git@v0.2.1'"
-    ),
+_V022_SKIP_REASON = (
+    "deltasim 0.2.2 以上が必要です。"
+    " pip install 'git+https://github.com/gt-ynakamatsu/deltasim.git@v0.2.2'"
 )
+
+require_v022 = pytest.mark.skipif(
+    not DELTASIM_V022_OR_LATER,
+    reason=_V022_SKIP_REASON,
+)
+
+# backward compat alias（既存のテストクラスに付いている @require_v020 を壊さない）
+require_v020 = require_v022
 
 
 def run_deltasim_test(answer_sv: Path, spec_yaml: Path) -> dict:
@@ -205,16 +209,16 @@ class TestChapter07Answers:
 class TestDeltasimVersionRequirement:
     """§15 サポートの確認（このテストが FAIL なら古い deltasim を使用中）"""
 
-    def test_v021_or_later_is_installed(self):
+    def test_v022_or_later_is_installed(self):
         """
         offset_ns が正しく動作することを確認する。
         FAIL した場合: deltasim b482527 以降をインストールしてください。
         pip install git+https://github.com/gt-ynakamatsu/deltasim.git@b482527
         """
-        assert DELTASIM_V021_OR_LATER, (
+        assert DELTASIM_V022_OR_LATER, (
             "⚠️ §15 (offset_ns) が未対応の deltasim が使われています。\n"
-            "b482527 以降をインストールしてください:\n"
-            "pip install 'git+https://github.com/gt-ynakamatsu/deltasim.git@b482527'\n"
+            "v0.2.2 以降をインストールしてください:\n"
+            "pip install 'git+https://github.com/gt-ynakamatsu/deltasim.git@v0.2.2'\n"
             "古いバージョンでは wrong_codes の PASS_KNOWN_LIMITATION チェックが"
             "誤った PASS を返す可能性があります。"
         )
@@ -269,11 +273,11 @@ class TestWrongCodesManifest:
         reason = entry.get("reason", "")
 
         # §15 が必要なファイルは offset_ns 非対応なら SKIP
-        if filename in _OFFSET_NS_REQUIRED_FILES and not DELTASIM_V021_OR_LATER:
+        if filename in _OFFSET_NS_REQUIRED_FILES and not DELTASIM_V022_OR_LATER:
             pytest.skip(
                 f"{filename} は §15 (offset_ns) を使って検出するため、"
                 f"古い deltasim では silent PASS になる可能性があります。"
-                f"b482527 以降の deltasim を使用してください。"
+                f"v0.2.2 以降の deltasim を使用してください。"
             )
 
         result = run_deltasim_test(wrong_sv, spec)
@@ -332,10 +336,10 @@ class TestSpecZeroWarnings:
         answer = DATA_ROOT / chapter / lesson / "answer.sv"
         result = run_deltasim_test(answer, spec)
 
-        # warnings キーが存在すること（v0.2.1 以降は常に present）
+        # warnings キーが存在すること（v0.2.2 以降は常に present）
         assert "warnings" in result, (
             f"[warnings キーが存在しません] {chapter}/{lesson}\n"
-            f"deltasim v0.2.1 以降を使用しているか確認してください。"
+            f"deltasim v0.2.2 以降を使用しているか確認してください。"
         )
 
         warnings = result.get("warnings") or []
@@ -414,9 +418,94 @@ class TestOffsetNsInFailedChecks:
         assert "4サイクル目のクロックの立ち上がりから4ns後" == loc, f"表示が異なります: {loc}"
 
 
+@require_v022
+class TestE001DirectDeltasim:
+    """endmodule なしコードを deltasim に直接渡すと E001 が返ること（v0.2.2+）"""
+
+    def test_missing_endmodule_gives_e001_with_line(self):
+        """
+        endmodule が無いコードを deltasim test --json に直接渡し、
+        - 数秒以内に終わること
+        - E001 エラーコードが返ること
+        - _format_e001 による日本語案内（行番号付き）が生成されること
+        """
+        import subprocess as sp
+        import time
+        from fpga_study.simulator import _parse_deltasim_result, _format_e001
+
+        sv_code = (
+            "module no_endmodule(input logic a, output logic y);\n"
+            "    assign y = a;\n"
+            "// endmodule が意図的に省略されています\n"
+        )
+        spec_code = (
+            "version: 1\ntop: no_endmodule\n"
+            "clock: {signal: clk, period_ns: 10}\nsim: {cycles: 2}\n"
+            "cases:\n  - name: test\n    expected:\n      - {at: 1, check: {y: 0}}\n"
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            sv = Path(tmp) / "no_endmodule.sv"
+            sv.write_text(sv_code)
+            spec = Path(tmp) / "spec.yaml"
+            spec.write_text(spec_code)
+            json_out = Path(tmp) / "result.json"
+
+            start = time.monotonic()
+            proc = sp.run(
+                ["deltasim", "test", str(sv), "--spec", str(spec), "--json", str(json_out)],
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+            elapsed = time.monotonic() - start
+            # 一時ディレクトリが消える前に JSON を読む
+            raw = json_out.read_text() if json_out.exists() else ""
+
+        # 数秒以内（15秒タイムアウトより十分短い）に完了すること
+        assert elapsed < 12, f"deltasim が {elapsed:.1f} 秒かかりました（12秒制限）"
+
+        result = _parse_deltasim_result(raw, proc.stderr or "")
+
+        # E001 エラーコードが存在すること
+        all_codes = {e.code for e in result.errors}
+        for c in result.cases:
+            all_codes.update(e.code for e in c.case_errors)
+        assert "E001" in all_codes, (
+            f"E001 が検出されませんでした。\n"
+            f"  codes={all_codes}, status={result.status}\n"
+            f"  stdout={proc.stdout!r}\n  stderr={proc.stderr!r}"
+        )
+
+        # E001 エラーの日本語案内が行番号を含むこと
+        e001_errors = [e for e in result.errors if e.code == "E001"]
+        for c in result.cases:
+            e001_errors.extend(e for e in c.case_errors if e.code == "E001")
+        assert e001_errors, "E001 エラーオブジェクトが result.errors / case_errors にありません"
+
+        # _format_e001 で日本語見出しが生成されること
+        e001 = e001_errors[0]
+        formatted = _format_e001(e001)
+        assert formatted, f"_format_e001 が空を返しました: {e001}"
+
+        # 行番号付きの見出しが出ること（行番号が取れた場合のみ）
+        if e001.line:
+            assert "行目" in formatted, (
+                f"行番号が見出しに含まれていません: {formatted!r}"
+            )
+
+        # user_message にも E001 の日本語案内が入ること
+        assert result.user_message, "user_message が空です"
+        # 「書き方にまちがい」か §11.17 の専用見出しのどちらかが含まれること
+        e001_keywords = ["書き方にまちがい", "文法", "ありません", "endmodule"]
+        assert any(kw in result.user_message for kw in e001_keywords), (
+            f"user_message に E001 の日本語案内がありません: {result.user_message!r}"
+        )
+
+
 @require_v020
 class TestLoopDetection:
-    """E_DELTA_LIMIT / E_LOOP_LIMIT による回路終わらない検出テスト (v0.2.1+)"""
+    """E_DELTA_LIMIT / E_LOOP_LIMIT による回路終わらない検出テスト (v0.2.2+)"""
 
     def test_combinational_loop_gives_friendly_message(self):
         """assign y = ~y; → E_DELTA_LIMIT → 回路が終わらない案内"""
@@ -458,10 +547,10 @@ class TestLoopDetection:
 
 @require_v020
 class TestMultiPortDeclaration:
-    """1行に複数のポートを書いた場合でも合格すること (v0.2.1+)"""
+    """1行に複数のポートを書いた場合でも合格すること (v0.2.2+)"""
 
     def test_ch6_lesson03_multiport_syntax_passes(self):
-        """input logic clk, rst, d の書き方が deltasim v0.2.1+ で通ること"""
+        """input logic clk, rst, d の書き方が deltasim v0.2.2+ で通ること"""
         answer = DATA_ROOT / "chapter06" / "lesson03" / "answer.sv"
         spec = DATA_ROOT / "chapter06" / "lesson03" / "spec.yaml"
         with tempfile.TemporaryDirectory() as tmp:
@@ -481,7 +570,7 @@ class TestMultiPortDeclaration:
 
 @require_v020
 class TestWhileLoopDetection:
-    """while loop → E_LOOP_LIMIT → 回路が終わらない案内 (v0.2.1+)"""
+    """while loop → E_LOOP_LIMIT → 回路が終わらない案内 (v0.2.2+)"""
 
     def test_while_loop_gives_loop_limit_code(self):
         """while ループが上限を超えたとき E_LOOP_LIMIT → 初心者向けメッセージ

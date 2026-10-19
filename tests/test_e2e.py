@@ -4,10 +4,10 @@ E2E テスト — 実際の uvicorn サーバーを起動して HTTP レベル�
 テスト対象:
   - レッスン応答（演習データ含む、説明→演習→クイズの順）
   - 練習問題採点（正解・不正解、進捗保存）
-  - HDL 採点 PASS（answer.sv → deltasim v0.2.1 必須）
+  - HDL 採点 PASS（answer.sv → deltasim v0.2.2 必須）
   - HDL 採点 FAIL（wrong_codes → 失敗チェック expected/actual）
   - always_ff 内の = → lint ヒントのみ（採点には影響しない）
-  - deltasim 旧バージョン → 「0.2.1 以上が必要」応答
+  - deltasim 旧バージョン → 「0.2.2 以上が必要」応答
   - コンテンツ可視性（デフォルト非表示 / --show-drafts で表示）
   - (Optional) Playwright ブラウザテスト
 """
@@ -27,7 +27,7 @@ import pytest
 
 DATA_ROOT = Path(__file__).parent.parent / "fpga_study" / "data"
 
-# deltasim v0.2.1 の有無
+# deltasim v0.2.2 の有無
 try:
     from fpga_study.simulator import check_deltasim_requirement, DELTASIM_MIN_VERSION
     _ok, _ver, _ = check_deltasim_requirement()
@@ -35,11 +35,11 @@ try:
 except Exception:
     DELTASIM_OK = False
 
-skip_if_no_deltasim_v021 = pytest.mark.skipif(
+skip_if_no_deltasim_v022 = pytest.mark.skipif(
     not DELTASIM_OK,
     reason=(
         f"deltasim {DELTASIM_MIN_VERSION} 以上が必要です。"
-        " pip install 'git+https://github.com/gt-ynakamatsu/deltasim.git@v0.2.1'"
+        " pip install 'git+https://github.com/gt-ynakamatsu/deltasim.git@v0.2.2'"
     ),
 )
 
@@ -183,9 +183,9 @@ class TestPracticeExercise:
 
 
 class TestHdlGrading:
-    """HDL 採点（deltasim v0.2.1 必須）"""
+    """HDL 採点（deltasim v0.2.2 必須）"""
 
-    @skip_if_no_deltasim_v021
+    @skip_if_no_deltasim_v022
     def test_answer_sv_passes(self, server_with_drafts):
         """答案コードが PASS になること"""
         answer_sv = (DATA_ROOT / "chapter06" / "lesson01" / "answer.sv").read_text()
@@ -199,7 +199,7 @@ class TestHdlGrading:
         assert len(res["cases"]) > 0
         assert all(c["status"] == "PASS" for c in res["cases"])
 
-    @skip_if_no_deltasim_v021
+    @skip_if_no_deltasim_v022
     def test_wrong_code_fails_with_check_details(self, server_with_drafts):
         """wrong_codes の FAIL コードが失敗チェック情報を返すこと"""
         wrong_sv = (DATA_ROOT / "chapter06" / "lesson01" /
@@ -220,7 +220,7 @@ class TestHdlGrading:
             # errors 経由でもよい（E001 などの場合）
             assert len(res["errors"]) > 0
 
-    @skip_if_no_deltasim_v021
+    @skip_if_no_deltasim_v022
     def test_lint_hint_for_blocking_assign(self, server_with_drafts):
         """always_ff 内の = が lint ヒントを返すが採点には影響しない"""
         # blocking = を使った DFF コード（正しいコードだが = を使う）
@@ -388,7 +388,7 @@ class TestBrowserQuiz:
 class TestBrowserHdlEditor:
     """Playwright を使ったブラウザレベルの HDL エディタテスト"""
 
-    @skip_if_no_deltasim_v021
+    @skip_if_no_deltasim_v022
     def test_hdl_editor_flow(self, server_with_drafts):
         from playwright.sync_api import sync_playwright
 

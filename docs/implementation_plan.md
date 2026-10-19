@@ -223,7 +223,7 @@ problems:
 
 ### 3.9 HDL演習定義 (exercise.yaml, type: hdl)
 
-> **deltasim の要件**: §15 (offset_ns) を利用する spec.yaml には **deltasim v0.2.1 以降** が必要。
+> **deltasim の要件**: §15 (offset_ns) を利用する spec.yaml には **deltasim v0.2.2 以降** が必要。
 > 古いバージョンでは offset_ns が無視されて silent PASS になる可能性があるため、
 > テストの `TestOffsetNsSupport` がバージョンチェックを行う。
 
@@ -281,7 +281,7 @@ cases:
      - {at: 3, offset_ns: 3, check: {y: 0}}  # 28ns で組み合わせ回路の反応を確認
    ```
    - `offset_ns` の範囲: `0 ≤ offset_ns < period_ns`（例: period_ns=10 なら 0〜9）
-   - **deltasim v0.2.1 以降が必要**（古いバージョンは offset_ns を無視）
+   - **deltasim v0.2.2 以降が必要**（古いバージョンは offset_ns を無視）
    - テストの `TestOffsetNsSupport` で自動チェック
 
 ## 5. アーキテクチャ概要

@@ -28,11 +28,11 @@ jobs:
       - name: 依存パッケージのインストール
         run: pip install ".[dev]"
 
-      - name: deltasim v0.2.1 のインストール（§15 offset_ns サポート）
+      - name: deltasim v0.2.2 のインストール（§15 offset_ns サポート）
         run: |
-          pip install "git+https://github.com/gt-ynakamatsu/deltasim.git@v0.2.1"
+          pip install "git+https://github.com/gt-ynakamatsu/deltasim.git@v0.2.2"
 
-      - name: deltasim バージョン確認（0.2.1 以上であること）
+      - name: deltasim バージョン確認（0.2.2 以上であること）
         shell: bash
         run: |
           VER=$(deltasim --version 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
@@ -41,8 +41,8 @@ jobs:
           import sys
           ver = '$VER'
           parts = tuple(int(x) for x in ver.split('.'))
-          if parts < (0, 2, 1):
-              print(f'ERROR: deltasim {ver} < 0.2.1 required')
+          if parts < (0, 2, 2):
+              print(f'ERROR: deltasim {ver} < 0.2.2 required')
               sys.exit(1)
           print(f'OK: deltasim {ver} >= 0.2.1')
           "

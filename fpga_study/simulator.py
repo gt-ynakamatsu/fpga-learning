@@ -94,8 +94,8 @@ from typing import Optional, Protocol, runtime_checkable
 
 SUPPORTED_SCHEMA_MAJOR = "2"
 
-# deltasim 最低バージョン要件（v0.2.1 以上が必須）
-DELTASIM_MIN_VERSION = "0.2.1"
+# deltasim 最低バージョン要件（v0.2.2 以上が必須）
+DELTASIM_MIN_VERSION = "0.2.2"
 
 
 def get_deltasim_version() -> Optional[str]:
@@ -132,7 +132,7 @@ def check_deltasim_requirement(
     （_parse_deltasim_result 内で自動確認）。
     0.2.0 未満の場合はグレーディングを拒否し、統合テストは SKIP する。
     """
-    install_hint = "pip install 'git+https://github.com/gt-ynakamatsu/deltasim.git@v0.2.1'"
+    install_hint = "pip install 'git+https://github.com/gt-ynakamatsu/deltasim.git@v0.2.2'"
 
     ver = get_deltasim_version()
     if ver is None:
@@ -172,7 +172,7 @@ class CheckResult:
     expected: str         # 4値文字列 (MSB先頭、小文字)
     actual: str
     message: Optional[str] = None
-    offset_ns: int = 0    # サイクル内オフセット (v0.2.1+、§15.7)
+    offset_ns: int = 0    # サイクル内オフセット (v0.2.2+、§15.7)
 
 
 @dataclass
@@ -185,7 +185,7 @@ class CaseResult:
     checks: list[CheckResult] = field(default_factory=list)
     log: list[str] = field(default_factory=list)
     message: Optional[str] = None
-    case_errors: list["ErrorDetail"] = field(default_factory=list)  # cases[].errors (v0.2.1+)
+    case_errors: list["ErrorDetail"] = field(default_factory=list)  # cases[].errors (v0.2.2+)
 
 
 @dataclass
@@ -430,7 +430,7 @@ def _parse_deltasim_result(raw: str, stderr: str = "") -> SimulationResult:
 
     errors: list[ErrorDetail] = [_parse_error(e) for e in data.get("errors", [])]
 
-    # §15.12: warnings は常に存在する（v0.2.1 以降は常に空リストまたはリスト）
+    # §15.12: warnings は常に存在する（v0.2.2 以降は常に空リストまたはリスト）
     # 旧バージョン互換のため None または absent の場合も空リストとして扱う
     raw_warnings = data.get("warnings") or []
     warnings: list[WarningDetail] = [_parse_warning(w) for w in raw_warnings]
@@ -460,7 +460,7 @@ def _parse_case(c: dict) -> "CaseResult":
         checks=[_parse_check(ch) for ch in c.get("checks", [])],
         log=list(c.get("log", [])),
         message=c.get("message"),
-        case_errors=[_parse_error(e) for e in c.get("errors", [])],  # v0.2.1+
+        case_errors=[_parse_error(e) for e in c.get("errors", [])],  # v0.2.2+
     )
 
 
@@ -474,7 +474,7 @@ def _parse_check(c: dict) -> CheckResult:
         expected=c.get("expected", ""),
         actual=c.get("actual", ""),
         message=c.get("message"),
-        offset_ns=int(c.get("offset_ns") or 0),  # v0.2.1+ §15.7
+        offset_ns=int(c.get("offset_ns") or 0),  # v0.2.2+ §15.7
     )
 
 
@@ -596,10 +596,14 @@ def _build_user_message(
             if dedup_key in seen_codes:
                 continue
             seen_codes.add(dedup_key)
-            # ファイル名のみ（/tmp パスを除去）
-            fname = Path(e.file).name if e.file else ""
-            loc = f"{fname}:{e.line}" if fname else (f"行{e.line}" if e.line else "")
-            lines.append(f"  [{e.severity}]{(' ' + loc) if loc else ''} — {_friendly_error(e.message, e.code)}")
+            # E001: §11.20 の見出し形式
+            if e.code == "E001":
+                lines.append(f"  {_format_e001(e)}")
+            else:
+                # ファイル名のみ（/tmp パスを除去）
+                fname = Path(e.file).name if e.file else ""
+                loc = f"{fname}:{e.line}" if fname else (f"行{e.line}" if e.line else "")
+                lines.append(f"  [{e.severity}]{(' ' + loc) if loc else ''} — {_friendly_error(e.message, e.code)}")
             shown += 1
             if shown >= 5:
                 break
@@ -625,6 +629,35 @@ def _build_user_message(
     return "\n".join(lines)
 
 
+
+def _format_e001(e: "ErrorDetail") -> str:
+    """
+    E001 エラーを §11.20 の仕様で日本語の見出しに変換する。
+    - §11.17 に当てはまる場合はその専用見出し
+    - それ以外は「書き方にまちがいがあります（N行目）」 + 問題内容
+    """
+    msg = e.message
+    lower = msg.lower()
+    line_str = f"（{e.line}行目）" if e.line else ""
+
+    # §11.17 固有パターン
+    if "unexpected token" in lower:
+        return f"コードの書き方（文法）に誤りがあります{line_str}"
+    if "top module" in lower and "not found" in lower:
+        return f"モジュール名が spec の設定（top:）と異なります"
+    if "expected port direction" in lower:
+        return f"ポートの向き（input / output / inout）が指定されていません{line_str}"
+
+    # 汎用 E001：見出し + 問題内容
+    jp_detail = _friendly_error(msg, "E001")
+    result = f"書き方にまちがいがあります{line_str}"
+    if jp_detail and jp_detail != msg:
+        result += f"\n  → {jp_detail}"
+    elif msg:
+        result += f"\n  → {msg}"
+    return result
+
+
 def _friendly_error(message: str, code: str = "") -> str:
     """
     エラーメッセージを初心者向けに言い換える。
@@ -648,6 +681,9 @@ def _friendly_error(message: str, code: str = "") -> str:
         return "コードの書き方（文法）に誤りがあります"
     if "top module" in lower and "not found" in lower:
         return "モジュール名が spec の設定（top:）と異なります"
+    # E001 ですでに日本語のメッセージ（deltasim v0.2.2+）はそのまま使う
+    if "ありません" in message or "見つかりません" in message or "開始" in message:
+        return message
 
     hints = [
         ("expected ';'",  "セミコロン ';' が抜けています"),

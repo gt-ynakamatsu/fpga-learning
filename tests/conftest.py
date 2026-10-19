@@ -14,11 +14,11 @@ from fpga_study.server import create_app
 
 
 def pytest_configure(config: pytest.Config) -> None:
-    """REQUIRE_DELTASIM=1 のとき、deltasim v0.2.1 以上がなければ即 FAIL"""
+    """REQUIRE_DELTASIM=1 のとき、deltasim v0.2.2 以上がなければ即 FAIL"""
     if os.environ.get("REQUIRE_DELTASIM", "0") != "1":
         return
 
-    install_hint = "pip install 'git+https://github.com/gt-ynakamatsu/deltasim.git@v0.2.1'"
+    install_hint = "pip install 'git+https://github.com/gt-ynakamatsu/deltasim.git@v0.2.2'"
 
     try:
         from fpga_study.simulator import get_deltasim_version
@@ -40,9 +40,9 @@ def pytest_configure(config: pytest.Config) -> None:
         pytest.exit(f"REQUIRE_DELTASIM=1: バージョン解析失敗: {ver!r}", returncode=1)
         return
 
-    if parts < (0, 2, 1):
+    if parts < (0, 2, 2):
         pytest.exit(
-            f"REQUIRE_DELTASIM=1: deltasim {ver} < 0.2.1。\n{install_hint}",
+            f"REQUIRE_DELTASIM=1: deltasim {ver} < 0.2.2。\n{install_hint}",
             returncode=1,
         )
 

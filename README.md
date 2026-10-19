@@ -213,13 +213,13 @@ tests/              # ユニットテスト・APIテスト
 
 ## HDLシミュレーション（第6・7章）
 
-第6・7章のHDL演習には **deltasim 0.2.1 以上** が必要です。
+第6・7章のHDL演習には **deltasim 0.2.2 以上** が必要です。
 
 ```bash
-# v0.2.1 タグ公開後（推奨）:
-pip install 'git+https://github.com/gt-ynakamatsu/deltasim.git@v0.2.1'
+# v0.2.2 タグ公開後（推奨）:
+pip install 'git+https://github.com/gt-ynakamatsu/deltasim.git@v0.2.2'
 
-pip install 'git+https://github.com/gt-ynakamatsu/deltasim.git@v0.2.1'
+pip install 'git+https://github.com/gt-ynakamatsu/deltasim.git@v0.2.2'
 ```
 
 deltasim がインストールされていない場合、第1〜5章の回路パズルは引き続き利用できます。
