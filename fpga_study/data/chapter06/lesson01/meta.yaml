@@ -1,0 +1,6 @@
+id: lesson01
+title: "module と assign — 組み合わせロジックの記述"
+description: "SystemVerilog の基本構文でANDゲートを書いてみよう"
+estimated_min: 15
+status: draft
+has_hdl_exercise: true

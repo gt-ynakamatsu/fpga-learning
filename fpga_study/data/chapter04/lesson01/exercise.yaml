@@ -1,0 +1,23 @@
+id: ex_ch04_l01
+type: practice
+problems:
+  - id: p1
+    type: fill_number
+    question: "D=0 のときにクロック立ち上がりが来ました。Q はいくつになりますか？"
+    answer: 0
+    hint: "D-FFはクロック立ち上がりで D の値を Q に記録します"
+    wrong_hint: "DFFはDの値をそのままQに記録します。D=0なのでQ=0"
+
+  - id: p2
+    type: fill_number
+    question: "Q=1 の状態で D=0 を入力しましたが、クロックはまだ来ていません。Q はいくつですか？"
+    answer: 1
+    hint: "DFFはクロックエッジが来るまで Q の値を保持します"
+    wrong_hint: "DFFはクロックが来るまでQは変わりません。Q=1のまま"
+
+  - id: p3
+    type: fill_number
+    question: "クロックが3回立ち上がりました。各回のD値は順に D=1, D=0, D=1 でした。3回目の後、Q はいくつですか？"
+    answer: 1
+    hint: "最後のクロックでのD値がQに記録されます"
+    wrong_hint: "3回目の立ち上がりで D=1 が Q に記録されるので Q=1"

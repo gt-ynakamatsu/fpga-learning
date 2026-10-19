@@ -4,3 +4,4 @@ description: "Dフリップフロップを配線し、クロックを進めて�
 estimated_min: 15
 status: draft
 has_puzzle: true
+has_exercise: true

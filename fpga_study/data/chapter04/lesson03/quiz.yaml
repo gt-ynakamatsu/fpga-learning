@@ -1,4 +1,3 @@
-status: draft
 questions:
   - id: q1
     question: "D=1 のときにクロックが立ち上がりました。Q の値はどうなりますか？"
@@ -6,7 +5,7 @@ questions:
       - "Q = 0"
       - "Q = 1"
       - "Q は変わらない"
-      - "Q = D の反転（= 0）"
+      - "Q は不定"
     answer: 1
     explanation: "D-FF はクロックの立ち上がりエッジで D の値を Q に記録します。D=1 なら Q=1 になります。"
 

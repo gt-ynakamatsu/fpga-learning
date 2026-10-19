@@ -1,7 +1,6 @@
 id: puzzle_half_adder
 title: "半加算器を作ろう（XOR + AND）"
 description: "XORゲートでSUM（和）を、ANDゲートでCARRY（桁上がり）を作ってください。AとBの両方を各ゲートに配線しましょう。"
-status: draft
 inputs:
   - name: A
   - name: B

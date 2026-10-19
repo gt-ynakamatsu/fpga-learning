@@ -1,0 +1,9 @@
+id: chapter06
+title: "HDL入門（SystemVerilog）"
+description: "module、assign、always_comb、always_ff を使ってデジタル回路をコードで記述しよう"
+order: 6
+status: draft
+lessons:
+  - lesson01
+  - lesson02
+  - lesson03

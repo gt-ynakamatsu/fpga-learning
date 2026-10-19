@@ -16,14 +16,16 @@
 
 | 章 | タイトル | 状態 | 備考 |
 |----|---------|------|------|
-| 第1章 | 2進数・16進数とビット | ✅ 実装済み（下書き） | lesson01〜03、クイズあり |
-| 第2章 | 論理ゲートと真理値表 | ✅ 実装済み（下書き） | lesson01〜03、回路パズルあり |
-| 第3章 | 組み合わせ回路 | 🔲 次リリース | 加算器・マルチプレクサ等 |
-| 第4章 | 順序回路 | 🔲 次リリース | FF・カウンタ等 |
-| 第5章 | ステートマシン | 🔲 次リリース | |
-| 第6章 | HDL入門（SystemVerilog） | 🔲 次リリース | deltasim CLIが必要 |
-| 第7章 | シミュレーションと波形 | 🔲 次リリース | deltasim CLIが必要 |
-| 第8章 | FPGAとは何か | 対象外 | 次リリース以降 |
+| 第1章 | 2進数・16進数とビット | ✅ 実装済み（draft） | lesson01〜03、クイズ・演習あり |
+| 第2章 | 論理ゲートと真理値表 | ✅ 実装済み（draft） | lesson01〜03、回路パズルあり |
+| 第3章 | 組み合わせ回路 | ✅ 実装済み（draft） | lesson01〜03、演習・回路パズルあり |
+| 第4章 | 順序回路 | ✅ 実装済み（draft） | lesson01〜03、演習・順序回路パズルあり |
+| 第5章 | ステートマシン | ✅ 実装済み（draft） | lesson01〜03、演習あり |
+| 第6章 | HDL入門（SystemVerilog） | 🔄 実装中（draft） | deltasim CLI連携・HDL演習あり |
+| 第7章 | シミュレーションと波形 | 🔄 実装中（draft） | deltasim CLI連携・波形ビューアあり |
+| 第8章 | FPGAとは何か | 対象外 | 次リリース以降（仕様書§8） |
+
+> **注**: 第1〜7章が最初のリリース対象（仕様書§8確定）。第8章・ミニ課題・実機ボード対応は次リリース以降。
 
 ---
 
@@ -66,15 +68,23 @@ lessons:
 id: lesson01
 title: "デジタルの世界と「ビット」"
 description: "..."
-estimated_min: 10            # 目安学習時間（分）
-status: draft                # draft | review | published
-has_puzzle: false            # 回路パズルがある場合 true
+estimated_min: 10             # 目安学習時間（分）
+status: draft                 # 下記参照
+has_puzzle: false             # 省略時 false（回路パズルがある場合 true）
+has_exercise: false           # 省略時 false（練習問題がある場合 true）
+has_hdl_exercise: false       # 省略時 false（HDL演習がある場合 true）
 ```
 
-**statusフィールドの意味:**
-- `draft`: 下書き。教材担当が確認前の状態
-- `review`: レビュー中。仕様考案係による確認中
-- `published`: 公開済み
+**statusフィールドの値（decisions 1）**:
+
+| 値 | 意味 |
+|----|------|
+| `draft`    | 下書き。教材担当が確認前の状態 |
+| `review`   | 確認依頼中。仕様考案係によるレビュー待ち |
+| `reviewed` | 仕様考案係が確認済み。リリース候補 |
+| `published`| リリース済み。利用者に公開中 |
+
+> **注**: `quiz.yaml` / `puzzle.yaml` の `status` フィールドは廃止（decisions 1）。状態管理は `meta.yaml` のみで行う。
 
 ### 3.4 クイズ定義 (quiz.yaml)
 
@@ -171,6 +181,44 @@ Simulator (Protocol)
 
 ---
 
+### 3.5 順序回路パズル定義 (puzzle.yaml, decisions 3)
+
+```yaml
+id: puzzle_dff_basic
+title: "Dフリップフロップを配線しよう"
+type: sequential          # 組み合わせ: combinational（省略時）/ 順序: sequential
+inputs:
+  - name: D
+outputs:
+  - name: Q
+available_gates:
+  - type: DFF             # 順序回路ゲート
+    count: 1
+target_truth_table:
+  - clock: 0              # クロック立ち上がり回数
+    inputs: {D: 1}        # 立ち上がり直前の入力値
+    outputs: {Q: 0}       # 立ち上がり直後の出力値
+  - clock: 1
+    inputs: {D: 1}
+    outputs: {Q: 1}
+```
+
+> **decisions 3 定義**: `inputs` は「クロック立ち上がり直前の値」、`outputs` は「立ち上がり直後の値」。
+
+### 3.6 練習問題定義 (exercise.yaml, decisions 2)
+
+```yaml
+id: ex_l01_1
+type: practice            # practice | hdl（HDL演習は第6・7章）
+problems:
+  - id: p1
+    type: fill_number      # fill_number | fill_text | sort_items
+    question: "3ビットで表せる情報の種類は何通りですか？"
+    answer: 8
+    hint: "2をN回かけた数です"
+    wrong_hint: "ビット数を使って計算してみましょう"
+```
+
 ## 5. アーキテクチャ概要
 
 ```
@@ -212,6 +260,6 @@ CI は GitHub Actions で Linux + Windows の両方で実行する（`.github/wo
 1. **第3〜7章の教材作成**: 組み合わせ回路・順序回路・ステートマシン・HDL・シミュレーション
 2. **HDL演習機能の実装**: `fpga_study/server.py` にHDL提出エンドポイントを追加、`DeltasimCLISimulator.run()` を実際の教材フローに組み込む
 3. **deltasim の仕様YAML形式**: 教材ごとにどのような `spec.yaml` を用意するか設計が必要
-4. **教材レビューフロー**: `status: review` になったファイルを仕様考案係が確認するワークフロー整備
+4. **教材レビューフロー**: `status: review` → `reviewed` → `published` の確認フロー整備
 5. **LLMヒント機能（任意）**: 「なぜ動かないの？」に答えるローカルLLM連携
 6. **実機ボード対応**: 仕様考案係との調整後に対応

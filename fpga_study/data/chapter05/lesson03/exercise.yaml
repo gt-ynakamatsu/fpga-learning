@@ -1,0 +1,23 @@
+id: ex_ch05_l03
+type: practice
+problems:
+  - id: p1
+    type: fill_number
+    question: "自動販売機でS1(Q1=0,Q0=1)のときCOIN=1が入力されました。次状態 D1 はいくつですか？"
+    answer: 1
+    hint: "D1 = NOT Q1 AND Q0 AND COIN"
+    wrong_hint: "D1 = NOT(0) AND 1 AND 1 = 1×1×1 = 1"
+
+  - id: p2
+    type: fill_number
+    question: "自動販売機でS2(Q1=1,Q0=0)のときCOIN=0が入力されました。次状態 D0 はいくつですか？"
+    answer: 0
+    hint: "D0 = NOT Q1 AND (Q0 XOR COIN)、Q1=1 の場合は？"
+    wrong_hint: "D0 = NOT(1) AND ... = 0 AND ... = 0（Q1=1なのでD0は必ず0）"
+
+  - id: p3
+    type: fill_number
+    question: "自動販売機でS1(Q1=0,Q0=1)のとき、VEND 出力はいくつですか？"
+    answer: 0
+    hint: "VEND = Q1 です"
+    wrong_hint: "VEND = Q1 = 0（S1 = Q1=0 なので VEND=0）"

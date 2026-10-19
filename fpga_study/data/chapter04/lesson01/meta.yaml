@@ -3,3 +3,4 @@ title: "クロックとフリップフロップ"
 description: "デジタル回路の心臓部「クロック」と状態を記憶する「フリップフロップ」を学ぼう"
 estimated_min: 13
 status: draft
+has_exercise: true

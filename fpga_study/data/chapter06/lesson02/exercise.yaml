@@ -1,0 +1,29 @@
+id: ex_ch06_l02
+title: "2:1 MUX を always_comb で実装しよう"
+type: hdl
+difficulty: 1
+status: draft
+description: |
+  module mux2to1 を完成させてください。
+  sel=0 のとき a を、sel=1 のとき b を出力 y に選択します。
+spec_file: spec.yaml
+answer_file: answer.sv
+template: |
+  module mux2to1(
+      input  logic clk,
+      input  logic sel,  // セレクト信号
+      input  logic a,    // 入力A
+      input  logic b,    // 入力B
+      output logic y     // 出力
+  );
+      always_comb begin
+          // 【課題】sel が 1 のとき b を、0 のとき a を y に代入してください
+          if (sel)
+              y = /* ここ */;
+          else
+              y = /* ここ */;
+      end
+  endmodule
+hints:
+  - "sel=1 のとき b を選ぶので if (sel) y = b;"
+  - "sel=0 のとき a を選ぶので else y = a;"

@@ -1,4 +1,3 @@
-status: draft
 questions:
   - id: q1
     question: "自動販売機の例で、S1（1枚投入済み）のとき COIN=1 が入力されました。次の状態は何ですか？"
@@ -21,14 +20,14 @@ questions:
     explanation: "ムーア型ではアウトプットは状態のみに依存します。VEND=1 は S2（商品排出状態）のときだけです。"
 
   - id: q3
-    question: "ステートマシンの設計で「カルノー図」を使う目的は何ですか？"
+    question: "自動販売機の設計で、D0 の正しい論理式はどれですか？（状態 11 はドントケア）"
     options:
-      - "状態遷移図を自動的に描くため"
-      - "次状態ロジックの論理式を簡略化するため"
-      - "クロック周波数を決めるため"
-      - "状態の数を減らすため"
+      - "D0 = NOT Q1 AND NOT Q0 AND COIN"
+      - "D0 = NOT Q1 AND (Q0 XOR COIN)"
+      - "D0 = Q0 AND COIN"
+      - "D0 = Q0 OR COIN"
     answer: 1
-    explanation: "カルノー図（Karnaugh Map）は真理値表から論理式を効率的に導き、できるだけシンプルな式に簡略化するためのツールです。次状態ロジックや出力ロジックの設計に使います。"
+    explanation: "D0=1 になるのは「S0→S1（Q1=0,Q0=0,COIN=1）」と「S1→S1（Q1=0,Q0=1,COIN=0）」の2つ。この条件を整理すると NOT Q1 AND (Q0 XOR COIN) になります。"
 
   - id: q4
     question: "ステートマシンを FPGA で実装するとき、状態を記憶するのに使う素子は何ですか？"

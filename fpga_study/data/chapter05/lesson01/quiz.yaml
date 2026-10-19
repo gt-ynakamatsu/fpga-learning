@@ -1,4 +1,3 @@
-status: draft
 questions:
   - id: q1
     question: "ステートマシンの「状態」とは何ですか？"

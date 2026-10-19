@@ -1,7 +1,6 @@
 id: puzzle_and_gate
 title: "ANDゲートを配線してみよう"
 description: "AとBの両方が1のときだけY=1になる回路を作ってください。ANDゲートを1つ追加して、入力と出力に配線しましょう。"
-status: draft
 inputs:
   - name: A
   - name: B

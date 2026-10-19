@@ -1,0 +1,23 @@
+id: ex_ch03_l01
+type: practice
+problems:
+  - id: p1
+    type: fill_number
+    question: "半加算器で A=1、B=0 のとき、CARRY（桁上がり）はいくつですか？"
+    answer: 0
+    hint: "CARRY = A AND B です"
+    wrong_hint: "AND は両方1のときだけ1になります。A=1, B=0 なら？"
+
+  - id: p2
+    type: fill_number
+    question: "全加算器で A=1、B=1、Cin=1 のとき、SUM はいくつですか？"
+    answer: 1
+    hint: "1+1+1=3、3を2進数で表すと 11₂。SUM は下位1ビット"
+    wrong_hint: "3 = 11₂ なので SUM=1、Cout=1 です"
+
+  - id: p3
+    type: fill_number
+    question: "全加算器で A=0、B=1、Cin=1 のとき、Cout（桁上がり出力）はいくつですか？"
+    answer: 1
+    hint: "0+1+1=2=10₂、Cout は上位ビット"
+    wrong_hint: "2 = 10₂ なので SUM=0、Cout=1 です"

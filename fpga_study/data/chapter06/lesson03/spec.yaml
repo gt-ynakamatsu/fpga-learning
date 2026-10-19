@@ -1,0 +1,35 @@
+version: 1
+top: d_ff
+clock:
+  signal: clk
+  period_ns: 10
+reset:
+  signal: rst
+  active_low: false
+  duration_cycles: 3
+sim:
+  cycles: 30
+  seed: 42
+cases:
+  - name: "capture_d1"
+    inputs:
+      - at: 4
+        set: {d: 1}
+    expected:
+      - at: 5
+        check: {q: 1}
+  - name: "capture_d0_after_d1"
+    inputs:
+      - at: 4
+        set: {d: 1}
+      - at: 6
+        set: {d: 0}
+    expected:
+      - at: 5
+        check: {q: 1}
+      - at: 7
+        check: {q: 0}
+  - name: "reset_clears_q"
+    expected:
+      - at: 2
+        check: {q: 0}

@@ -1,4 +1,3 @@
-status: draft
 questions:
   - id: q1
     question: "2:1 MUX で S=1 のとき、どちらの入力が出力 Y に現れますか？"

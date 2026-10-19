@@ -1,0 +1,27 @@
+id: ex_ch07_l02
+title: "4ビットカウンタを always_ff で実装しよう"
+type: hdl
+difficulty: 2
+status: draft
+description: |
+  module counter4 を完成させてください。
+  同期リセット（rst=1 で 0 に戻る）付きの4ビットカウンタです。
+spec_file: spec.yaml
+answer_file: answer.sv
+template: |
+  module counter4(
+      input  logic       clk,    // クロック
+      input  logic       rst,    // 同期リセット（rst=1 でリセット）
+      output logic [3:0] count   // 4ビットカウンタ出力
+  );
+      always_ff @(posedge clk) begin
+          if (rst)
+              count <= /* ここ: リセット時の値（4ビット）*/;
+          else
+              count <= /* ここ: 通常時（+1する） */;
+      end
+  endmodule
+hints:
+  - "リセット時は 4'b0 または 4'd0（4ビットの0）を代入"
+  - "+1 するには count + 4'b1 または count + 1"
+  - "4ビットは15の次に自動的に0に戻ります（オーバーフロー）"

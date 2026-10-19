@@ -1,0 +1,23 @@
+id: ex_ch01_l03
+type: practice
+problems:
+  - id: p1
+    type: fill_number
+    question: "16進数 0x5A を2進数にすると何桁になりますか？（0xは1桁ではありません）"
+    answer: 8
+    hint: "16進数1桁 = 4ビット。0x5Aは2桁なので？"
+    wrong_hint: "16進数1桁=4ビット、2桁なら4×2=8ビット"
+
+  - id: p2
+    type: fill_number
+    question: "16進数 0x5A を10進数に変換するといくつですか？（5=5、A=10）"
+    answer: 90
+    hint: "5×16 + A×1 = 5×16 + 10 = ?"
+    wrong_hint: "5×16=80、10×1=10、合計90"
+
+  - id: p3
+    type: fill_number
+    question: "2進数 10100011₂ を16進数に変換すると 0x__ __ になります。上位4ビット（1010）の16進数の値は？（10進数で）"
+    answer: 10
+    hint: "1010₂ = 8+2 = 10₁₀ = A₁₆"
+    wrong_hint: "1×8 + 0×4 + 1×2 + 0×1 = 10 → A"

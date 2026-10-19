@@ -1,0 +1,6 @@
+id: lesson01
+title: "シミュレーションとは？"
+description: "HDLコードが正しいかどうかを確かめるシミュレーションの仕組みを学ぼう"
+estimated_min: 10
+status: draft
+has_exercise: true

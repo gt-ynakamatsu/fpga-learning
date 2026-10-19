@@ -1,4 +1,3 @@
-status: draft
 questions:
   - id: q1
     question: "Dフリップフロップで、Q の値が更新されるのはいつですか？"

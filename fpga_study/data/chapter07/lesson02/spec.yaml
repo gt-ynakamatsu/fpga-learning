@@ -1,0 +1,27 @@
+version: 1
+top: counter4
+clock:
+  signal: clk
+  period_ns: 10
+reset:
+  signal: rst
+  active_low: false
+  duration_cycles: 3
+sim:
+  cycles: 30
+  seed: 42
+cases:
+  - name: "counts_up"
+    expected:
+      - at: 4
+        check: {count: 1}
+      - at: 5
+        check: {count: 2}
+      - at: 6
+        check: {count: 3}
+      - at: 7
+        check: {count: 4}
+  - name: "reset_to_zero"
+    expected:
+      - at: 2
+        check: {count: 0}

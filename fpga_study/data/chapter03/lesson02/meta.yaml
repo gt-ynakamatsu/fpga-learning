@@ -3,3 +3,4 @@ title: "マルチプレクサとデマルチプレクサ"
 description: "データの選択と振り分けを行う回路を理解しよう"
 estimated_min: 12
 status: draft
+has_exercise: true

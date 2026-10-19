@@ -1,0 +1,30 @@
+questions:
+  - id: q1
+    question: "SystemVerilog で AND ゲートを assign 文で記述するとき、AND 演算子はどれですか？"
+    options:
+      - "&&"
+      - "&"
+      - "AND"
+      - "+"
+    answer: 1
+    explanation: "SystemVerilog（Verilog）での1ビットAND演算子は & です。&& は論理AND（C言語と同じ）でif文などに使います。ハードウェアのビット演算には & を使います。"
+
+  - id: q2
+    question: "output logic [7:0] sum は何ビットの出力ですか？"
+    options:
+      - "1ビット"
+      - "7ビット"
+      - "8ビット"
+      - "16ビット"
+    answer: 2
+    explanation: "[7:0] は 7番ビットから0番ビットまでの8ビット（7-0+1=8）を表します。FPGAのHDLでは [MSB:LSB] の順で書きます。"
+
+  - id: q3
+    question: "assign 文はどの種類の回路を記述しますか？"
+    options:
+      - "順序回路（フリップフロップ）"
+      - "組み合わせ回路（入力が決まれば即座に出力が決まる）"
+      - "クロック生成回路"
+      - "テストベンチ"
+    answer: 1
+    explanation: "assign は「継続的代入」と呼ばれ、組み合わせロジックを記述します。右辺の値が変わると左辺も即座に更新されます。フリップフロップなどの順序回路には always_ff を使います。"

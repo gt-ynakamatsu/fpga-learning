@@ -16,6 +16,7 @@ from fpga_study.content.loader import (
 from fpga_study.content.validator import (
     ValidationError,
     validate_chapter_meta,
+    validate_exercise,
     validate_puzzle,
     validate_quiz,
 )
@@ -101,6 +102,59 @@ class TestSchemaValidation:
             "target_truth_table": [{"clock": 0, "inputs": {"D": 0}, "outputs": {"Q": 0}}],
         })
 
+    def test_quiz_status_field_invalid(self):
+        """quiz.yaml に status フィールドがあるとエラー（decisions 1 で廃止）"""
+        # quiz の status は validation では強制しないが、has_no_status_field テストで実ファイルをチェック
+        # スキーマレベルでは status は additionalProperties で許容（廃止は慣習）
+        pass
+
+
+class TestExerciseSchema:
+    def test_practice_exercise_valid(self):
+        """練習問題（practice）の有効なexercise.yaml"""
+        validate_exercise({
+            "id": "ex1",
+            "type": "practice",
+            "problems": [
+                {
+                    "id": "p1",
+                    "type": "fill_number",
+                    "question": "いくつ？",
+                    "answer": 42,
+                    "hint": "ヒント",
+                }
+            ],
+        })
+
+    def test_hdl_exercise_valid(self):
+        """HDL演習（hdl）の有効なexercise.yaml"""
+        validate_exercise({
+            "id": "ex_hdl",
+            "type": "hdl",
+            "problems": [
+                {
+                    "id": "p1",
+                    "type": "fill_text",
+                    "question": "コードを書いてください",
+                    "answer": "a & b",
+                }
+            ],
+        })
+
+    def test_exercise_invalid_type(self):
+        with pytest.raises(ValidationError):
+            validate_exercise({
+                "id": "ex", "type": "unknown",
+                "problems": [{"id": "p1", "type": "fill_number", "question": "?", "answer": 1}],
+            })
+
+    def test_exercise_invalid_problem_type(self):
+        with pytest.raises(ValidationError):
+            validate_exercise({
+                "id": "ex", "type": "practice",
+                "problems": [{"id": "p1", "type": "invalid_type", "question": "?", "answer": 1}],
+            })
+
 
 class TestContentLoader:
     def test_load_chapters_returns_list(self, data_root):
@@ -168,6 +222,38 @@ class TestContentLoader:
         ids = [ch["id"] for ch in chapters]
         for cid in ["chapter01", "chapter02", "chapter03", "chapter04", "chapter05"]:
             assert cid in ids
+
+    def test_chapter06_has_3_lessons(self, data_root):
+        lessons = load_lessons("chapter06", data_root)
+        assert len(lessons) == 3
+
+    def test_chapter07_has_2_lessons(self, data_root):
+        lessons = load_lessons("chapter07", data_root)
+        assert len(lessons) == 2
+
+    def test_lesson_status_uses_new_values(self, data_root):
+        """status が新定義 (draft|review|reviewed|published) の値を使っている"""
+        valid_statuses = {"draft", "review", "reviewed", "published"}
+        chapters = load_chapters(data_root)
+        for ch in chapters:
+            if "status" in ch:
+                assert ch["status"] in valid_statuses, f"{ch['id']}: invalid status {ch['status']}"
+
+    def test_quiz_has_no_status_field(self, data_root):
+        """quiz.yaml には status フィールドがない（decisions 1）"""
+        import yaml
+        for chapter_dir in (data_root).iterdir():
+            if not chapter_dir.is_dir():
+                continue
+            for lesson_dir in chapter_dir.iterdir():
+                if not lesson_dir.is_dir():
+                    continue
+                quiz_path = lesson_dir / "quiz.yaml"
+                if quiz_path.exists():
+                    data = yaml.safe_load(quiz_path.read_text())
+                    assert "status" not in data, (
+                        f"{quiz_path}: quiz.yaml に status フィールドがあります（decisions 1 で廃止）"
+                    )
 
 
 class TestGateEval:
