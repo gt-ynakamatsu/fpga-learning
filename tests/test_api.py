@@ -57,7 +57,7 @@ class TestChapterAPI:
         assert res.status_code == 200
         lesson = res.json()
         assert lesson["puzzle"] is not None
-        assert lesson["puzzle"]["id"] == "puzzle_and_gate"
+        assert lesson["puzzle"]["id"] == "puzzle_xor_gate"
 
 
 class TestQuizAPI:
@@ -101,13 +101,14 @@ class TestQuizAPI:
 
 class TestPuzzleAPI:
     def _make_and_connections(self):
+        # Ch02 lesson03 の puzzle は XOR gate に変更済み
         return {
             "connections": [
                 {"from_id": "input_A", "from_port": "output_0", "to_id": "gate_1", "to_port": "input_0"},
                 {"from_id": "input_B", "from_port": "output_0", "to_id": "gate_1", "to_port": "input_1"},
                 {"from_id": "gate_1", "from_port": "output_0", "to_id": "output_Y", "to_port": "input_0"},
             ],
-            "gate_placements": [{"id": "gate_1", "type": "AND", "x": 300, "y": 200}],
+            "gate_placements": [{"id": "gate_1", "type": "XOR", "x": 300, "y": 200}],
         }
 
     def test_puzzle_check_pass(self, client):

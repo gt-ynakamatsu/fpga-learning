@@ -191,7 +191,7 @@ class TestContentLoader:
         lesson = load_lesson("chapter02", "lesson03", data_root)
         assert lesson is not None
         assert lesson["puzzle"] is not None
-        assert lesson["puzzle"]["id"] == "puzzle_and_gate"
+        assert lesson["puzzle"]["id"] == "puzzle_xor_gate"
 
     def test_load_nonexistent_lesson(self, data_root):
         lesson = load_lesson("chapter99", "lesson99", data_root)

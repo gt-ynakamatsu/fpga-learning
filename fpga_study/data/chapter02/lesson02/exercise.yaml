@@ -1,0 +1,23 @@
+id: ex_ch02_l02
+type: practice
+problems:
+  - id: p1
+    type: fill_number
+    question: "NOTゲートで入力が A=0 のとき、出力 Y はいくつですか？"
+    answer: 1
+    hint: "NOTゲートは入力を反転します（0→1、1→0）"
+    wrong_hint: "NOT の真理値表：A=0→Y=1、A=1→Y=0"
+
+  - id: p2
+    type: fill_number
+    question: "XORゲートで入力が A=1、B=1 のとき、出力 Y はいくつですか？"
+    answer: 0
+    hint: "XORは「どちらか一方だけ 1 のとき」1 を出力します"
+    wrong_hint: "XOR: 同じ値なら 0 を出力します（1 XOR 1 = 0）"
+
+  - id: p3
+    type: fill_number
+    question: "2入力XORゲートの全4パターンのうち、出力が1になるパターンは何通りですか？"
+    answer: 2
+    hint: "入力が「異なる」ときだけ 1 になります"
+    wrong_hint: "(0,1)と(1,0)の2通りが 1 になります"

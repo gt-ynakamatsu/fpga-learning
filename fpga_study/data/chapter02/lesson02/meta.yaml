@@ -3,3 +3,4 @@ title: "NOTゲートとXORゲート"
 description: "反転するNOTと、排他的論理和XORのしくみを学ぼう"
 estimated_min: 12
 status: draft
+has_exercise: true

@@ -10,7 +10,7 @@ problems:
 
   - id: p2
     type: fill_number
-    question: "100MHzクロック（period_ns: 10）で at: 5 のとき、シミュレーション時間は何ナノ秒ですか？"
+    question: "クロック周期 10ns で、5回目の立ち上がりエッジは何ナノ秒（ns）の時刻ですか？\n（立ち上がりは 5ns, 15ns, 25ns, ... の順）"
     answer: 45
-    hint: "クロック周期10ns、立ち上がりは 5ns, 15ns, 25ns, 35ns, 45ns... at:5は5回目の立ち上がり"
-    wrong_hint: "5回目の立ち上がり = 5×10 - 5 = 45ns（半周期ずれている）"
+    hint: "1回目=5ns, 2回目=15ns, 3回目=25ns, 4回目=35ns, 5回目=?"
+    wrong_hint: "5ns + (5-1)×10ns = 5ns + 40ns = 45ns"

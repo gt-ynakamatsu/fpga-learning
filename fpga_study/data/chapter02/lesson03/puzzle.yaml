@@ -1,24 +1,25 @@
-id: puzzle_and_gate
-title: "ANDゲートを配線してみよう"
-description: "AとBの両方が1のときだけY=1になる回路を作ってください。ANDゲートを1つ追加して、入力と出力に配線しましょう。"
+id: puzzle_xor_gate
+title: "XORゲートを配線してみよう"
+description: "AとBが違うときだけY=1になる回路を作ってください。XORゲートを1つ追加して、入力と出力に配線しましょう。"
+type: combinational
 inputs:
   - name: A
   - name: B
 outputs:
   - name: Y
 available_gates:
+  - type: XOR
+    count: 1
   - type: AND
     count: 1
   - type: OR
-    count: 1
-  - type: NOT
     count: 1
 target_truth_table:
   - inputs: {A: 0, B: 0}
     outputs: {Y: 0}
   - inputs: {A: 0, B: 1}
-    outputs: {Y: 0}
-  - inputs: {A: 1, B: 0}
-    outputs: {Y: 0}
-  - inputs: {A: 1, B: 1}
     outputs: {Y: 1}
+  - inputs: {A: 1, B: 0}
+    outputs: {Y: 1}
+  - inputs: {A: 1, B: 1}
+    outputs: {Y: 0}

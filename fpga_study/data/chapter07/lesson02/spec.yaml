@@ -21,6 +21,25 @@ cases:
         check: {count: 3}
       - at: 7
         check: {count: 4}
+  - name: "overflow_15_to_0"
+    expected:
+      - at: 18
+        check: {count: 15}
+      - at: 19
+        check: {count: 0}
+      - at: 20
+        check: {count: 1}
+  - name: "sync_reset_during_count"
+    inputs:
+      - at: 8
+        set: {rst: 1}
+      - at: 9
+        set: {rst: 0}
+    expected:
+      - at: 8
+        check: {count: 0}
+      - at: 9
+        check: {count: 1}
   - name: "reset_to_zero"
     expected:
       - at: 2

@@ -3,3 +3,4 @@ title: "ANDゲートとORゲート"
 description: "最も基本的な論理ゲート、ANDとORのしくみを真理値表で理解しよう"
 estimated_min: 12
 status: draft
+has_exercise: true

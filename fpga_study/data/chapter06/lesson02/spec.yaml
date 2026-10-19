@@ -9,24 +9,59 @@ sim:
   cycles: 20
   seed: 42
 cases:
-  - name: "sel0_picks_a"
+  - name: "sel0_a0_b0"
     inputs:
       - at: 3
-        set: {sel: 0, a: 1, b: 0}
+        set: {sel: 0, a: 0, b: 0}
     expected:
       - at: 5
-        check: {y: 1}
-  - name: "sel1_picks_b"
-    inputs:
-      - at: 3
-        set: {sel: 1, a: 0, b: 1}
-    expected:
-      - at: 5
-        check: {y: 1}
-  - name: "sel0_ignores_b"
+        check: {y: 0}
+  - name: "sel0_a0_b1"
     inputs:
       - at: 3
         set: {sel: 0, a: 0, b: 1}
     expected:
       - at: 5
         check: {y: 0}
+  - name: "sel0_a1_b0"
+    inputs:
+      - at: 3
+        set: {sel: 0, a: 1, b: 0}
+    expected:
+      - at: 5
+        check: {y: 1}
+  - name: "sel0_a1_b1"
+    inputs:
+      - at: 3
+        set: {sel: 0, a: 1, b: 1}
+    expected:
+      - at: 5
+        check: {y: 1}
+  - name: "sel1_a0_b0"
+    inputs:
+      - at: 3
+        set: {sel: 1, a: 0, b: 0}
+    expected:
+      - at: 5
+        check: {y: 0}
+  - name: "sel1_a0_b1"
+    inputs:
+      - at: 3
+        set: {sel: 1, a: 0, b: 1}
+    expected:
+      - at: 5
+        check: {y: 1}
+  - name: "sel1_a1_b0"
+    inputs:
+      - at: 3
+        set: {sel: 1, a: 1, b: 0}
+    expected:
+      - at: 5
+        check: {y: 0}
+  - name: "sel1_a1_b1"
+    inputs:
+      - at: 3
+        set: {sel: 1, a: 1, b: 1}
+    expected:
+      - at: 5
+        check: {y: 1}

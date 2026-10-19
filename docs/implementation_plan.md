@@ -55,7 +55,7 @@ id: chapter01
 title: "2進数・16進数とビット"
 description: "..."
 order: 1                     # 表示順（1始まり）
-status: draft                # draft | review | published
+status: draft                # draft | review | reviewed | published（decisions 1）
 lessons:
   - lesson01
   - lesson02
@@ -148,9 +148,11 @@ deltasim test <RTLファイル...> --spec <仕様YAML> --json <出力パス>
 
 ### 4.2 出力JSONの読み取り方針
 
-- **利用するフィールド**: `status` / `checks` / `errors` のみ
-- **無視するフィールド**: `elapsed_ms`, `seed`, `cancelled`, `log`, `module` 等（将来フィールド含む）
-- **`schema_version` チェック**: `"1"` 以外は非対応メッセージを表示して終了
+- **利用するフィールド**: `status` / `cases` / `checks` / `errors` / `summary.elapsed_ms`
+  - `cases[].checks`: ケースごとの個別チェック結果（信号名・サイクル・期待値・実測値）
+  - `cases[].errors`: ケースごとのエラー詳細（ファイル・行・列・重要度・メッセージ・コード）
+- **無視するフィールド**: `elapsed_ms`(非推奨), `seed`, `cancelled`, `log`, `module` 等（将来フィールド含む）
+- **`schema_version` チェック**: メジャー番号 `"2"` 以外は非対応メッセージを表示（`schema_version` が `"2"` 以外のメジャーの場合に警告）
 - **パーサの一元化**: `fpga_study/simulator.py` の `_parse_deltasim_result()` に集約。フォーマット変更時はここだけ修正する
 
 ### 4.3 近日変更予定への対応
@@ -181,7 +183,7 @@ Simulator (Protocol)
 
 ---
 
-### 3.5 順序回路パズル定義 (puzzle.yaml, decisions 3)
+### 3.7 順序回路パズル定義 (puzzle.yaml, decisions 3)
 
 ```yaml
 id: puzzle_dff_basic
@@ -205,7 +207,7 @@ target_truth_table:
 
 > **decisions 3 定義**: `inputs` は「クロック立ち上がり直前の値」、`outputs` は「立ち上がり直後の値」。
 
-### 3.6 練習問題定義 (exercise.yaml, decisions 2)
+### 3.8 練習問題定義 (exercise.yaml, decisions 2)
 
 ```yaml
 id: ex_l01_1
@@ -244,12 +246,25 @@ fpga_study/
 
 | テスト対象 | ファイル | 内容 |
 |-----------|---------|------|
-| YAMLスキーマ検証 | `tests/test_content.py` | 正常・異常系のスキーマ検証 |
-| ゲート評価ロジック | `tests/test_content.py` | AND/OR/NOT/XOR/NAND/NOR の全真理値表 |
-| 回路パズル評価 | `tests/test_puzzle.py` | 正解/不正解/未接続の各パターン |
+| YAMLスキーマ検証 | `tests/test_content.py` | 正常・異常系のスキーマ検証（meta/quiz/puzzle/exercise） |
+| ゲート評価ロジック | `tests/test_content.py` | AND/OR/NOT/XOR/NAND/NOR/DFF の全真理値表 |
+| 回路パズル評価 | `tests/test_puzzle.py` | 正解/不正解/未接続、半加算器、順序回路DFF |
 | 進捗保存 | `tests/test_progress.py` | クイズ/パズル/バッジの保存と取得 |
 | API エンドポイント | `tests/test_api.py` | 全主要エンドポイントの正常・異常系 |
-| deltasim パーサ | `tests/test_simulator.py` | docs/api.md サンプルJSONを使った検証、堅牢性テスト |
+| deltasim パーサ | `tests/test_simulator.py` | schema_version "2"、cases[]、E_NO_CASE、バージョン互換 |
+| HDL演習実機確認 | `tests/test_hdl_integration.py` | answer.svがPASS・wrong_codesがFAIL（deltasimインストール時のみ） |
+
+#### HDL演習の間違いコード検出
+
+各演習に `wrong_codes/` ディレクトリを設置し、「正解例はPASS、間違いコードはFAIL」を統合テストで確認：
+
+| 演習 | 検出可能な誤り | 検出方法 |
+|------|--------------|---------|
+| Ch6 L2 MUX | sel^a、a\|(sel&b) | 全8組み合わせケースで検出 |
+| Ch6 L3 D-FF | リセットなし | 動作中リセットケースで検出 |
+| Ch7 L2 カウンタ | 飽和版、0-9版、リセットなし | オーバーフロー＋動作中リセットで検出 |
+
+⚠️ **deltasim 整数サイクル制約**: `assign q=rst?0:d`（組み合わせ回路）や非同期リセットは、クロックエッジ境界での入力変化のみでは区別不可。wrong_codes/README.md に詳細を記載。
 
 CI は GitHub Actions で Linux + Windows の両方で実行する（`.github/workflows/ci.yml`）。
 

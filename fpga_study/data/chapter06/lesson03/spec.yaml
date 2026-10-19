@@ -8,7 +8,7 @@ reset:
   active_low: false
   duration_cycles: 3
 sim:
-  cycles: 30
+  cycles: 40
   seed: 42
 cases:
   - name: "capture_d1"
@@ -29,6 +29,32 @@ cases:
         check: {q: 1}
       - at: 7
         check: {q: 0}
+  - name: "q_holds_while_d_stable"
+    inputs:
+      - at: 4
+        set: {d: 1}
+    expected:
+      - at: 5
+        check: {q: 1}
+      - at: 6
+        check: {q: 1}
+      - at: 7
+        check: {q: 1}
+  - name: "sync_reset_during_operation"
+    inputs:
+      - at: 4
+        set: {d: 1}
+      - at: 8
+        set: {rst: 1}
+      - at: 9
+        set: {rst: 0, d: 1}
+    expected:
+      - at: 5
+        check: {q: 1}
+      - at: 8
+        check: {q: 0}
+      - at: 10
+        check: {q: 1}
   - name: "reset_clears_q"
     expected:
       - at: 2
