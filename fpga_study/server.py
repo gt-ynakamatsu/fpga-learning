@@ -432,7 +432,7 @@ def create_app(
                     for ch in c.checks:
                         if ch.status == "PASS":
                             continue
-                        offset_ns = ch.offset_ns or 0  # CheckResult.offset_ns (v0.2.1+)
+                        offset_ns = ch.offset_ns or 0  # CheckResult.offset_ns (v0.2.2+)
                         if offset_ns:
                             loc = f"{ch.cycle}サイクル目のクロックの立ち上がりから{offset_ns}ns後"
                         else:

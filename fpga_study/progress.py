@@ -232,8 +232,13 @@ def save_quiz_answer(
         stored_attempt = row["quiz_current_attempt"] if row else ""
         done = json.loads(row["quiz_answers_done"] or "[]") if row else []
 
+        # attempt_id が無い場合は UUID を生成（累積防止: クライアントが ID を送らない場合も1問1attempt扱い）
+        if not attempt_id:
+            import uuid as _uuid
+            attempt_id = f"auto-{_uuid.uuid4()}"
+
         # attempt_id が変わったら前回の正解をリセット（§11.14: 1周全問正解が条件）
-        if attempt_id and attempt_id != stored_attempt:
+        if attempt_id != stored_attempt:
             done = []
 
         if question_id not in done:
@@ -241,7 +246,7 @@ def save_quiz_answer(
 
         quiz_total = len(all_question_ids)
         score = sum(1 for qid in all_question_ids if qid in done)
-        new_attempt = attempt_id or stored_attempt
+        new_attempt = attempt_id
 
         with conn:
             conn.execute(

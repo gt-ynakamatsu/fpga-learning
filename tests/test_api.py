@@ -244,6 +244,17 @@ class TestQuizAttemptIsolation:
             f"ページ再読み込み後に前回の正解が残っています: score={prog['quiz_score']}"
         )
 
+    def test_no_attempt_id_does_not_accumulate(self, client):
+        """attempt_id なしで全問正解しても累積 4/4 にならない（各問が別 attempt 扱い）"""
+        for qid, idx in self._CORRECT:
+            client.post(self._URL, json={"question_id": qid, "answer_index": idx})
+
+        prog = client.get("/api/progress/chapter01/lesson01").json()
+        # attempt_id なし = 各問が auto-UUID で別 attempt → 累積しない
+        assert prog["quiz_score"] < 4, (
+            f"attempt_id なしで累積 {prog['quiz_score']}/4 になりました"
+        )
+
 
 class TestNoTmpPaths:
     """API レスポンスに /tmp パスが含まれないこと"""
