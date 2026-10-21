@@ -1,0 +1,41 @@
+# wrong_codes/manifest.yaml — Ch06 Lesson03 (D-FF)
+# expected フィールド:
+#   FAIL                     : spec で確実に FAIL する
+#   PASS_KNOWN_LIMITATION     : 自動テストでは区別できない（コーディングルール違反）
+
+wrong_codes:
+  - file: no_reset.sv
+    expected: FAIL
+    reason: "rst チェックなし。rst_overrides_d・sync_reset_during_operation で FAIL する"
+
+  - file: twostage.sv
+    expected: FAIL
+    reason: "D→Q1→Q の 2 段パイプライン。same_cycle_capture（at:4 check q=1）で FAIL する"
+
+  - file: reg_output.sv
+    expected: PASS_KNOWN_LIMITATION
+    reason: >
+      always_ff 内でブロッキング代入 = を使用。deltasim バグが修正されたため現在は PASS する。
+      FF が 1 段だけなので、整数サイクル境界での観測値が正しいコードと同一になる。
+      コーディングルール違反（always_ff 内では <= を使うべき）として扱う。
+
+  - file: combinational.sv
+    expected: FAIL
+    reason: >
+      assign q = rst?0:d は組み合わせ回路（FF なし）。
+      §15 hold_between_edges ケース（offset_ns 使用）で、D がエッジ後に変わっても
+      Q が変化することが FAIL として検出される。
+
+  - file: async_reset.sv
+    expected: FAIL
+    reason: >
+      always_ff @(posedge clk or posedge rst) は非同期リセット。
+      §15 sync_reset_waits_for_edge ケースで、サイクル途中の rst 変化が
+      Q に即座に反映されることが FAIL として検出される。
+
+  - file: registered_comb.sv
+    expected: PASS_KNOWN_LIMITATION
+    reason: >
+      assign d_comb = rst?0:d; always_ff @(posedge clk) q <= d_comb; は
+      機能的には正しいコードと同一。§15 ケースでも PASS のまま。
+      「always_ff 内で if(rst) を使う」コーディングルール違反として扱う。

@@ -1,0 +1,17 @@
+# wrong_codes/manifest.yaml — Ch06 Lesson01 (AND gate)
+# expected フィールド:
+#   FAIL                     : spec で確実に FAIL する
+#   PASS_KNOWN_LIMITATION     : 自動テストでは区別できない（コーディングルール違反 or §15対応待ち）
+
+wrong_codes:
+  - file: and_twostage.sv
+    expected: FAIL
+    reason: "2段 FF パイプライン。同サイクルチェック（at:3 set & check）で a_d2 が更新されず y=0 になる"
+
+  - file: and_reg1.sv
+    expected: FAIL
+    reason: >
+      出力を 1 段 FF に通す（always_ff @(posedge clk) y <= a & b）。
+      mid_cycle_b_zero ケース: b をエッジ後（offset_ns:2）に 0 に変更し、
+      offset_ns:3 で y=0 を確認する。組み合わせ回路なら即座に y=0 になるが、
+      FF 経由では次のクロックエッジまで y=1 を保持するため FAIL する。

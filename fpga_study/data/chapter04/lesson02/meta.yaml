@@ -1,0 +1,6 @@
+id: lesson02
+title: "リセットとカウンタ"
+description: "リセット信号で初期化し、クロックに合わせて数え上げるカウンタを学ぼう"
+estimated_min: 12
+status: published
+has_exercise: true

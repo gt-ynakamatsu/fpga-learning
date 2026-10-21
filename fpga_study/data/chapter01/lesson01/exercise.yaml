@@ -1,0 +1,23 @@
+id: ex_ch01_l01
+type: practice
+problems:
+  - id: p1
+    type: fill_number
+    question: "3ビットで表せる情報の種類は何通りですか？（全パターンを数えてみましょう：000, 001, 010, 011, 100, 101, 110, 111）"
+    answer: 8
+    hint: "2を3回かけた数 = 2×2×2"
+    wrong_hint: "ビット数を N として、2をN回かけた数が答えです"
+
+  - id: p2
+    type: fill_number
+    question: "1バイトは何ビットですか？"
+    answer: 8
+    hint: "本文の「1バイト」の説明を見てください"
+    wrong_hint: "1バイト = 8ビットです"
+
+  - id: p3
+    type: fill_number
+    question: "1バイト（8ビット）で表せる情報の種類は何通りですか？"
+    answer: 256
+    hint: "2を8回かけると？ 2×2×2×2×2×2×2×2"
+    wrong_hint: "2の8乗 = 256です"

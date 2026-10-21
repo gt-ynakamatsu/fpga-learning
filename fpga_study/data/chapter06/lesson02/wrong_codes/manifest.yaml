@@ -1,0 +1,25 @@
+# wrong_codes/manifest.yaml — Ch06 Lesson02 (2:1 MUX)
+# expected フィールド:
+#   FAIL                     : spec で確実に FAIL する
+#   PASS_KNOWN_LIMITATION     : 自動テストでは区別できない（コーディングルール違反 or §15対応待ち）
+
+wrong_codes:
+  - file: sel_xor_a.sv
+    expected: FAIL
+    reason: "y = sel ^ a は sel=1,a=0,b=0 と sel=1,a=1,b=1 で誤った出力を返す"
+
+  - file: a_or_sel_and_b.sv
+    expected: FAIL
+    reason: "y = a|(sel&b) は sel=1,a=1,b=0（期待 y=0）で誤って y=1 を返す"
+
+  - file: latch.sv
+    expected: FAIL
+    reason: "else ブランチなし → ラッチ生成。latch_detection ケースで FAIL する"
+
+  - file: mux_reg1.sv
+    expected: FAIL
+    reason: >
+      出力を 1 段 FF に通す（always_ff @(posedge clk) if(sel) y<=b; else y<=a;）。
+      mid_cycle_sel_change ケース: sel をエッジ後（offset_ns:2）に 0 に変更し、
+      offset_ns:3 で y=0（a=0）を確認する。組み合わせ MUX なら即座に y=0 になるが、
+      FF 経由では次のクロックエッジまで y=1 を保持するため FAIL する。

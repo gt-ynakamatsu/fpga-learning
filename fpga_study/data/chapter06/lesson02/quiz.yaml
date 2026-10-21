@@ -1,0 +1,20 @@
+questions:
+  - id: q1
+    question: "always_comb ブロック内でif文を書いた場合、なぜ必ず else も書く必要がありますか？"
+    options:
+      - "elseがないとコンパイルエラーになるから"
+      - "elseがないと意図しないラッチ（記憶素子）が生成される可能性があるから"
+      - "elseがないと動作が遅くなるから"
+      - "elseがないと出力が反転するから"
+    answer: 1
+    explanation: "always_comb 内で全条件で値が割り当てられないと、値が変化しないとき「前の値を保持」するラッチが合成ツールによって自動的に生成されることがあります。組み合わせロジックとして設計するなら必ず else を書きます。"
+
+  - id: q2
+    question: "2:1 MUX で sel=0 のとき入力 a を、sel=1 のとき入力 b を出力する場合、always_comb 内の正しい記述はどれですか？"
+    options:
+      - "if (sel) y = a; else y = b;"
+      - "if (sel) y = b; else y = a;"
+      - "assign y = a & b;"
+      - "y = sel ? a : b;"
+    answer: 1
+    explanation: "sel=1 のとき b を選ぶので if (sel) y = b; else y = a; が正しいです。sel=0（偽）のとき else ブランチが実行されます。"

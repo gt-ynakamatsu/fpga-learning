@@ -1,0 +1,353 @@
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   FPGAお勉強アプリ — スタイルシート
+   外部CDN不使用・同梱のみ
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+/* ── リセット & ベース ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --accent:        #4f46e5;
+  --accent-light:  #eef2ff;
+  --accent-dark:   #3730a3;
+  --success:       #16a34a;
+  --success-light: #dcfce7;
+  --danger:        #dc2626;
+  --danger-light:  #fee2e2;
+  --warn:          #d97706;
+  --warn-light:    #fef3c7;
+  --gray-50:       #f9fafb;
+  --gray-100:      #f3f4f6;
+  --gray-200:      #e5e7eb;
+  --gray-300:      #d1d5db;
+  --gray-400:      #9ca3af;
+  --gray-500:      #6b7280;
+  --gray-700:      #374151;
+  --gray-900:      #111827;
+  --radius:        8px;
+  --shadow-sm:     0 1px 3px rgba(0,0,0,.1);
+  --shadow-md:     0 4px 12px rgba(0,0,0,.12);
+}
+
+html { font-size: 16px; scroll-behavior: smooth; }
+
+body {
+  font-family: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP',
+               Meiryo, sans-serif;
+  background: var(--gray-50);
+  color: var(--gray-900);
+  line-height: 1.7;
+  min-height: 100vh;
+}
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+button { cursor: pointer; font-family: inherit; }
+img { max-width: 100%; }
+
+/* ── ヘッダー ── */
+.app-header {
+  background: white;
+  border-bottom: 1px solid var(--gray-200);
+  position: sticky; top: 0; z-index: 100;
+  box-shadow: var(--shadow-sm);
+}
+.header-inner {
+  max-width: 960px; margin: 0 auto; padding: 0 1rem;
+  display: flex; align-items: center; justify-content: space-between;
+  height: 56px;
+}
+.logo {
+  font-size: 1.1rem; font-weight: 700; color: var(--accent);
+  text-decoration: none;
+}
+.header-nav { display: flex; gap: 1.5rem; }
+.nav-link {
+  font-size: .9rem; color: var(--gray-500); font-weight: 500;
+  padding: .25rem 0; border-bottom: 2px solid transparent;
+  transition: color .2s, border-color .2s;
+}
+.nav-link:hover, .nav-link.active { color: var(--accent); text-decoration: none; border-bottom-color: var(--accent); }
+
+/* ── メイン ── */
+#app-root { max-width: 960px; margin: 0 auto; padding: 2rem 1rem; min-height: calc(100vh - 56px); }
+
+/* ── ローディング ── */
+.loading-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; height: 40vh; }
+.spinner { width: 40px; height: 40px; border: 4px solid var(--gray-200); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── ホーム画面 ── */
+.home-hero {
+  background: linear-gradient(135deg, var(--accent) 0%, #7c3aed 100%);
+  color: white; border-radius: 16px; padding: 3rem 2rem;
+  text-align: center; margin-bottom: 2.5rem;
+}
+.home-hero h1 { font-size: 2rem; margin-bottom: .5rem; }
+.home-hero p { font-size: 1.1rem; opacity: .9; }
+
+.chapter-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.25rem; }
+
+.chapter-card {
+  background: white; border: 1px solid var(--gray-200); border-radius: var(--radius);
+  padding: 1.5rem; cursor: pointer; transition: box-shadow .2s, transform .2s;
+  text-decoration: none; color: inherit; display: block;
+}
+.chapter-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); text-decoration: none; }
+.chapter-card-num { font-size: .75rem; color: var(--gray-400); text-transform: uppercase; letter-spacing: .05em; margin-bottom: .25rem; }
+.chapter-card-title { font-size: 1.05rem; font-weight: 700; color: var(--gray-900); margin-bottom: .5rem; }
+.chapter-card-desc { font-size: .875rem; color: var(--gray-500); }
+.chapter-progress-bar { height: 4px; background: var(--gray-200); border-radius: 2px; margin-top: 1rem; }
+.chapter-progress-fill { height: 100%; border-radius: 2px; background: var(--accent); transition: width .4s ease; }
+
+/* ── レッスン一覧 ── */
+.back-link { display: inline-flex; align-items: center; gap: .4rem; font-size: .9rem; color: var(--gray-500); margin-bottom: 1.5rem; }
+.back-link:hover { color: var(--accent); }
+
+.chapter-header { margin-bottom: 2rem; }
+.chapter-header h1 { font-size: 1.75rem; font-weight: 800; }
+.chapter-header p { color: var(--gray-500); margin-top: .25rem; }
+
+.lesson-list { display: flex; flex-direction: column; gap: .75rem; }
+.lesson-item {
+  background: white; border: 1px solid var(--gray-200); border-radius: var(--radius);
+  padding: 1.25rem 1.5rem; display: flex; align-items: center; gap: 1rem;
+  cursor: pointer; transition: box-shadow .2s; text-decoration: none; color: inherit;
+}
+.lesson-item:hover { box-shadow: var(--shadow-md); text-decoration: none; }
+.lesson-item.completed { border-left: 4px solid var(--success); }
+.lesson-check { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--gray-300); display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 1rem; }
+.lesson-check.done { background: var(--success); border-color: var(--success); color: white; }
+.lesson-info { flex: 1; }
+.lesson-title { font-weight: 600; font-size: 1rem; }
+.lesson-meta { font-size: .8rem; color: var(--gray-400); margin-top: .15rem; }
+.lesson-badges { display: flex; gap: .5rem; }
+.badge-small {
+  font-size: .7rem; padding: .15rem .5rem; border-radius: 99px;
+  background: var(--accent-light); color: var(--accent); font-weight: 600;
+}
+.badge-small.puzzle { background: #fef3c7; color: var(--warn); }
+
+/* ── レッスン本文 ── */
+.lesson-header { margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--gray-200); }
+.lesson-header h1 { font-size: 1.6rem; font-weight: 800; }
+.lesson-content {
+  background: white; border: 1px solid var(--gray-200); border-radius: var(--radius);
+  padding: 2rem; margin-bottom: 2rem; line-height: 1.9;
+}
+
+/* Markdownコンテンツのスタイル */
+.lesson-content h2 { font-size: 1.35rem; font-weight: 700; margin: 1.5em 0 .75em; padding-bottom: .4em; border-bottom: 2px solid var(--gray-200); }
+.lesson-content h3 { font-size: 1.1rem; font-weight: 700; margin: 1.25em 0 .5em; }
+.lesson-content p { margin-bottom: 1em; }
+.lesson-content ul, .lesson-content ol { margin: .75em 0 .75em 1.5em; }
+.lesson-content li { margin-bottom: .4em; }
+.lesson-content blockquote { border-left: 4px solid var(--accent); padding: .75rem 1rem; background: var(--accent-light); border-radius: 0 var(--radius) var(--radius) 0; margin: 1em 0; }
+.lesson-content code { background: var(--gray-100); padding: .1em .4em; border-radius: 4px; font-size: .9em; font-family: 'Consolas', 'Courier New', monospace; }
+.lesson-content pre { background: var(--gray-900); color: #e5e7eb; padding: 1.25rem; border-radius: var(--radius); overflow-x: auto; margin: 1em 0; font-family: "DejaVu Sans Mono", Consolas, "Courier New", monospace; }
+.lesson-content pre code { background: none; padding: 0; font-size: .875rem; color: inherit; font-family: "DejaVu Sans Mono", Consolas, "Courier New", monospace; }
+.lesson-content table { border-collapse: collapse; width: 100%; margin: 1em 0; font-size: .9rem; }
+.lesson-content th, .lesson-content td { border: 1px solid var(--gray-300); padding: .6em .9em; text-align: center; }
+.lesson-content th { background: var(--gray-100); font-weight: 700; }
+.lesson-content tr:nth-child(even) { background: var(--gray-50); }
+.lesson-content strong { font-weight: 700; color: var(--accent-dark); }
+.lesson-content em { color: var(--gray-700); }
+.lesson-content .highlight { position: relative; }
+
+/* ビット表示ボックス */
+.bit-display {
+  display: inline-flex; gap: 4px; background: var(--gray-900); padding: .5rem .75rem;
+  border-radius: var(--radius); margin: .5rem 0;
+}
+.bit-cell {
+  width: 32px; height: 40px; display: flex; flex-direction: column; align-items: center;
+  justify-content: flex-end; gap: 2px;
+}
+.bit-val { font-size: 1.1rem; font-weight: 700; font-family: monospace; color: white; }
+.bit-pos { font-size: .6rem; color: var(--gray-400); }
+.bit-cell.one .bit-val { color: #4ade80; }
+.bit-cell.zero .bit-val { color: #9ca3af; }
+
+/* ゲート表示 */
+.gate-diagram {
+  display: flex; align-items: center; gap: 2rem; margin: 1em 0;
+  flex-wrap: wrap;
+}
+.gate-svg-container { background: white; border: 1px solid var(--gray-200); border-radius: var(--radius); padding: 1rem; }
+
+/* ── クイズ ── */
+.quiz-section { background: white; border: 1px solid var(--gray-200); border-radius: var(--radius); padding: 2rem; }
+.quiz-section h2 { font-size: 1.25rem; font-weight: 700; margin-bottom: 1.5rem; display: flex; align-items: center; gap: .5rem; }
+.quiz-progress { font-size: .85rem; color: var(--gray-400); margin-left: auto; }
+
+.quiz-question { margin-bottom: 2rem; }
+.quiz-question-text { font-weight: 600; font-size: 1.05rem; margin-bottom: 1rem; line-height: 1.6; }
+.quiz-options { display: flex; flex-direction: column; gap: .6rem; }
+.quiz-option {
+  border: 2px solid var(--gray-200); border-radius: var(--radius); padding: .85rem 1.1rem;
+  cursor: pointer; transition: all .2s; font-size: .95rem; text-align: left;
+  background: white; display: flex; gap: .75rem; align-items: flex-start;
+}
+.quiz-option:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-light); }
+.quiz-option.selected { border-color: var(--accent); background: var(--accent-light); }
+.quiz-option.correct { border-color: var(--success); background: var(--success-light); color: var(--success); font-weight: 600; }
+.quiz-option.wrong { border-color: var(--danger); background: var(--danger-light); color: var(--danger); }
+.quiz-option:disabled { cursor: default; }
+.quiz-option-letter {
+  width: 22px; height: 22px; border-radius: 50%; background: var(--gray-200);
+  display: flex; align-items: center; justify-content: center;
+  font-size: .75rem; font-weight: 700; flex-shrink: 0; margin-top: .1rem;
+}
+.quiz-option.correct .quiz-option-letter { background: var(--success); color: white; }
+.quiz-option.wrong .quiz-option-letter { background: var(--danger); color: white; }
+.quiz-option.selected .quiz-option-letter { background: var(--accent); color: white; }
+
+.quiz-explanation {
+  margin-top: 1rem; padding: 1rem; border-radius: var(--radius);
+  background: var(--warn-light); border-left: 4px solid var(--warn);
+  font-size: .9rem; line-height: 1.7; display: none;
+}
+.quiz-explanation.visible { display: block; }
+
+.quiz-result { text-align: center; padding: 2rem; }
+.quiz-score-big { font-size: 3rem; font-weight: 800; color: var(--accent); }
+.quiz-score-label { font-size: 1.1rem; color: var(--gray-500); margin-bottom: 1rem; }
+
+/* ── ナビゲーションボタン ── */
+.lesson-nav { display: flex; gap: 1rem; justify-content: space-between; margin-top: 2rem; flex-wrap: wrap; }
+.btn {
+  display: inline-flex; align-items: center; gap: .5rem;
+  padding: .75rem 1.5rem; border-radius: var(--radius); font-weight: 600; font-size: .95rem;
+  border: none; transition: all .2s; text-decoration: none;
+}
+.btn-primary { background: var(--accent); color: white; }
+.btn-primary:hover { background: var(--accent-dark); color: white; text-decoration: none; }
+.btn-secondary { background: white; color: var(--gray-700); border: 1px solid var(--gray-300); }
+.btn-secondary:hover { background: var(--gray-100); text-decoration: none; }
+.btn-success { background: var(--success); color: white; }
+.btn-success:hover { background: #15803d; text-decoration: none; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ── 進捗ページ ── */
+.progress-header { margin-bottom: 2rem; }
+.progress-header h1 { font-size: 1.75rem; font-weight: 800; }
+
+.progress-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+.stat-card { background: white; border: 1px solid var(--gray-200); border-radius: var(--radius); padding: 1.25rem; text-align: center; }
+.stat-card .stat-num { font-size: 2rem; font-weight: 800; color: var(--accent); }
+.stat-card .stat-label { font-size: .85rem; color: var(--gray-500); margin-top: .25rem; }
+
+.badges-section { background: white; border: 1px solid var(--gray-200); border-radius: var(--radius); padding: 1.5rem; margin-bottom: 2rem; }
+.badges-section h2 { font-size: 1.1rem; font-weight: 700; margin-bottom: 1rem; }
+.badges-grid { display: flex; flex-wrap: wrap; gap: 1rem; }
+.badge-card { border: 1px solid var(--gray-200); border-radius: var(--radius); padding: .75rem 1.25rem; text-align: center; min-width: 120px; }
+.badge-card .badge-icon { font-size: 2rem; }
+.badge-card .badge-label { font-size: .8rem; color: var(--gray-500); margin-top: .25rem; }
+.no-badges { color: var(--gray-400); font-size: .9rem; }
+
+.progress-chapter { background: white; border: 1px solid var(--gray-200); border-radius: var(--radius); padding: 1.25rem 1.5rem; margin-bottom: .75rem; }
+.progress-chapter-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: .75rem; }
+.progress-chapter-title { font-weight: 600; }
+.progress-pct { font-size: .85rem; color: var(--accent); font-weight: 700; }
+.progress-bar { height: 8px; background: var(--gray-200); border-radius: 4px; }
+.progress-bar-fill { height: 100%; border-radius: 4px; background: var(--accent); transition: width .5s ease; }
+
+/* ── 演習（練習問題・HDL） ── */
+.exercise-section { background: white; border: 1px solid var(--gray-200); border-radius: var(--radius); padding: 2rem; margin-bottom: 2rem; }
+.exercise-section h2 { font-size: 1.2rem; font-weight: 700; margin-bottom: 1.5rem; display: flex; align-items: center; gap: .5rem; }
+.exercise-problem { margin-bottom: 1.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--gray-100); }
+.exercise-problem:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+.exercise-question { font-weight: 600; margin-bottom: .75rem; line-height: 1.6; }
+.exercise-input-row { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; }
+.exercise-input { border: 2px solid var(--gray-200); border-radius: var(--radius); padding: .5rem .75rem; font-size: 1rem; min-width: 120px; }
+.exercise-input:focus { outline: none; border-color: var(--accent); }
+.exercise-feedback { margin-top: .75rem; padding: .75rem 1rem; border-radius: var(--radius); font-size: .9rem; }
+.exercise-feedback.correct { background: var(--success-light); border-left: 4px solid var(--success); color: var(--success); font-weight: 700; }
+.exercise-feedback.wrong { background: var(--danger-light); border-left: 4px solid var(--danger); }
+.exercise-hint { margin-top: .5rem; font-size: .85rem; color: var(--gray-500); }
+
+/* ── HDL エディタ ── */
+.hdl-section { background: white; border: 1px solid var(--gray-200); border-radius: var(--radius); padding: 2rem; margin-bottom: 2rem; }
+.hdl-section h2 { font-size: 1.2rem; font-weight: 700; margin-bottom: .5rem; }
+.hdl-desc { font-size: .9rem; color: var(--gray-500); margin-bottom: 1rem; }
+.hdl-hints { background: var(--accent-light); border-radius: var(--radius); padding: .75rem 1rem; margin-bottom: 1rem; }
+.hdl-hints summary { font-weight: 600; cursor: pointer; color: var(--accent); }
+.hdl-hints ul { margin: .5rem 0 0 1.25rem; }
+.hdl-hints li { font-size: .875rem; margin-bottom: .25rem; }
+.hdl-editor { width: 100%; min-height: 220px; font-family: "DejaVu Sans Mono", Consolas, "Courier New", monospace; font-size: .875rem; padding: 1rem; border: 2px solid var(--gray-300); border-radius: var(--radius); background: var(--gray-900); color: #e5e7eb; resize: vertical; line-height: 1.5; tab-size: 4; }
+.hdl-editor:focus { outline: none; border-color: var(--accent); }
+.hdl-controls { display: flex; gap: 1rem; align-items: center; margin: .75rem 0; flex-wrap: wrap; }
+.hdl-version-warn { padding: .6rem 1rem; background: var(--warn-light); border-radius: var(--radius); font-size: .85rem; color: var(--warn); }
+.hdl-results { margin-top: 1rem; }
+.hdl-overall { padding: 1rem; border-radius: var(--radius); font-weight: 700; margin-bottom: 1rem; }
+.hdl-overall.pass { background: var(--success-light); color: var(--success); }
+.hdl-overall.fail { background: var(--danger-light); color: var(--danger); }
+.hdl-overall.error { background: var(--warn-light); color: var(--warn); }
+.hdl-case { border: 1px solid var(--gray-200); border-radius: var(--radius); padding: .75rem; margin-bottom: .5rem; }
+.hdl-case-header { display: flex; align-items: center; gap: .5rem; font-weight: 600; font-size: .9rem; }
+.hdl-case-pass { color: var(--success); }
+.hdl-case-fail { color: var(--danger); }
+.hdl-check-detail { font-size: .8rem; color: var(--gray-500); margin-top: .3rem; margin-left: 1.5rem; }
+.hdl-errors { margin-top: .5rem; }
+.hdl-error-item { font-size: .85rem; padding: .4rem .6rem; background: var(--danger-light); border-radius: 4px; margin-bottom: .25rem; }
+.hdl-lint-hints { background: var(--warn-light); border-radius: var(--radius); padding: .75rem; margin-top: .75rem; }
+.hdl-lint-title { font-weight: 700; font-size: .85rem; color: var(--warn); margin-bottom: .3rem; }
+.hdl-lint-item { font-size: .8rem; white-space: pre-wrap; }
+
+/* ── 回路パズル ── */
+.puzzle-section { background: white; border: 1px solid var(--gray-200); border-radius: var(--radius); overflow: hidden; margin-top: 2rem; }
+.puzzle-header { padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--gray-200); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
+.puzzle-header h2 { font-size: 1.1rem; font-weight: 700; display: flex; align-items: center; gap: .5rem; }
+.puzzle-toolbar { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
+.gate-btn {
+  padding: .45rem .9rem; border-radius: 6px; border: 2px solid var(--gray-300);
+  background: white; font-size: .85rem; font-weight: 600; cursor: pointer;
+  transition: all .15s; color: var(--gray-700);
+}
+.gate-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+.gate-btn.dragging { opacity: .5; }
+.gate-btn-count { font-size: .7rem; color: var(--gray-400); margin-left: .25rem; }
+
+.puzzle-body { display: grid; grid-template-columns: 1fr 260px; }
+@media (max-width: 700px) { .puzzle-body { grid-template-columns: 1fr; } }
+
+.puzzle-canvas-wrap { position: relative; background: #fafafa; border-right: 1px solid var(--gray-200); }
+#puzzle-canvas { display: block; width: 100%; touch-action: none; }
+
+.puzzle-sidebar { padding: 1rem; display: flex; flex-direction: column; gap: 1rem; overflow-y: auto; max-height: 540px; }
+.puzzle-sidebar h3 { font-size: .85rem; font-weight: 700; color: var(--gray-500); text-transform: uppercase; letter-spacing: .05em; }
+
+.truth-table { width: 100%; border-collapse: collapse; font-size: .8rem; }
+.truth-table th, .truth-table td { border: 1px solid var(--gray-200); padding: .3rem .5rem; text-align: center; }
+.truth-table th { background: var(--gray-100); font-weight: 700; font-size: .75rem; }
+.truth-table tr.check-pass td { background: var(--success-light); }
+.truth-table tr.check-fail td { background: var(--danger-light); }
+
+.puzzle-footer { padding: 1rem 1.5rem; border-top: 1px solid var(--gray-200); display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.puzzle-message { flex: 1; font-size: .9rem; }
+.puzzle-message.pass { color: var(--success); font-weight: 700; }
+.puzzle-message.fail { color: var(--danger); }
+
+/* ── トースト ── */
+#toast-container { position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 1000; display: flex; flex-direction: column; gap: .5rem; }
+.toast {
+  padding: .85rem 1.25rem; border-radius: var(--radius); background: var(--gray-900); color: white;
+  font-size: .9rem; box-shadow: var(--shadow-md); animation: slideIn .3s ease;
+  max-width: 320px; display: flex; align-items: flex-start; gap: .5rem;
+}
+.toast.success { background: var(--success); }
+.toast.error { background: var(--danger); }
+.toast.warn { background: var(--warn); }
+@keyframes slideIn { from { opacity: 0; transform: translateX(100%); } to { opacity: 1; transform: translateX(0); } }
+
+/* ── ステータスバッジ ── */
+.status-draft { background: var(--warn-light); color: var(--warn); font-size: .7rem; padding: .1rem .5rem; border-radius: 99px; font-weight: 600; }
+.status-review { background: var(--accent-light); color: var(--accent); font-size: .7rem; padding: .1rem .5rem; border-radius: 99px; font-weight: 600; }
+
+/* ── レスポンシブ ── */
+@media (max-width: 600px) {
+  .home-hero h1 { font-size: 1.5rem; }
+  .home-hero { padding: 2rem 1.25rem; }
+  .lesson-content { padding: 1.25rem; }
+  .quiz-section { padding: 1.25rem; }
+}

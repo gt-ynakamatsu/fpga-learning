@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  test:
+    name: テスト (${{ matrix.os }} / Python ${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Python のセットアップ
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: 依存パッケージのインストール
+        run: pip install ".[dev]"
+
+      - name: deltasim v0.2.2 のインストール（§15 offset_ns サポート）
+        run: |
+          pip install "git+https://github.com/gt-ynakamatsu/deltasim.git@v0.2.2"
+
+      - name: deltasim バージョン確認（0.2.2 以上であること）
+        shell: bash
+        run: |
+          VER=$(deltasim --version 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+          echo "deltasim version: $VER"
+          python3 -c "
+          import sys
+          ver = '$VER'
+          parts = tuple(int(x) for x in ver.split('.'))
+          if parts < (0, 2, 2):
+              print(f'ERROR: deltasim {ver} < 0.2.2 required')
+              sys.exit(1)
+          print(f'OK: deltasim {ver} >= 0.2.2')
+          "
+
+      - name: Playwright と Chromium のインストール
+        run: |
+          pip install playwright
+          playwright install chromium
+
+      - name: ユニットテスト・統合テストの実行
+        run: pytest tests/ --ignore=tests/test_e2e.py -v --tb=short
+        env:
+          REQUIRE_DELTASIM: "1"
+
+      - name: E2E テストの実行（Playwright 含む）
+        env:
+          REQUIRE_DELTASIM: "1"
+        run: pytest tests/test_e2e.py -v --tb=short
+
+      - name: カバレッジレポート
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
+        run: pytest tests/ --ignore=tests/test_e2e.py --cov=fpga_study --cov-report=term-missing --cov-fail-under=70

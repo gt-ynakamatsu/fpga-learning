@@ -1,0 +1,23 @@
+id: ex_ch02_l02
+type: practice
+problems:
+  - id: p1
+    type: fill_number
+    question: "XORゲートで A=1、B=0 のとき出力 Y はいくつですか？"
+    answer: 1
+    hint: "XOR は入力が異なるときだけ 1 です"
+    wrong_hint: "A=1 と B=0 は異なるので XOR の出力は 1 です"
+
+  - id: p2
+    type: fill_number
+    question: "NOTゲートで入力が A=0 のとき、出力 Y はいくつですか？"
+    answer: 1
+    hint: "NOTゲートは入力を反転します（0→1、1→0）"
+    wrong_hint: "NOT: 0→1 に反転するので Y=1"
+
+  - id: p3
+    type: fill_number
+    question: "NANDゲート（AND + NOT）で A=1、B=1 のとき出力 Y はいくつですか？"
+    answer: 0
+    hint: "NAND は AND の出力を反転します。AND(1,1)=1 を反転すると？"
+    wrong_hint: "AND(1,1)=1、NOT(1)=0 なので NAND(1,1)=0"

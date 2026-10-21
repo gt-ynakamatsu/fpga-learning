@@ -1,0 +1,23 @@
+id: ex_ch04_l02
+type: practice
+problems:
+  - id: p1
+    type: fill_number
+    question: "4ビットカウンタが 13 のとき、次のクロック立ち上がり後の値はいくつですか？"
+    answer: 14
+    hint: "カウンタは毎クロック +1 します"
+    wrong_hint: "13 + 1 = 14"
+
+  - id: p2
+    type: fill_number
+    question: "4ビットカウンタが 15 のとき、次のクロック立ち上がり後の値はいくつですか？"
+    answer: 0
+    hint: "4ビットの最大は15（= 1111₂）です。15の次は？"
+    wrong_hint: "15の次は 0 に戻ります（4ビットでオーバーフロー）"
+
+  - id: p3
+    type: fill_number
+    question: "1MHzのクロック（1秒に100万回）で1秒タイマーを作るとき、カウンタは0から何までカウントすればよいですか？"
+    answer: 999999
+    hint: "1MHzは1秒に1,000,000クロック。0から数えて1,000,000通りになるには？"
+    wrong_hint: "0から999,999まで = 1,000,000個の値 = 1秒分"

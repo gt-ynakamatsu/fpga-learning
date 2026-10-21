@@ -1,0 +1,24 @@
+# wrong_codes/manifest.yaml — Ch07 Lesson02 (counter4)
+# expected フィールド:
+#   FAIL                     : spec で確実に FAIL する
+#   PASS_KNOWN_LIMITATION     : 自動テストでは区別できない（コーディングルール違反）
+
+wrong_codes:
+  - file: saturate_at_15.sv
+    expected: FAIL
+    reason: "15 で飽和して 0 に戻らない。overflow_15_to_0 ケース（at:19 count=0 期待）で FAIL"
+
+  - file: count_0_to_9.sv
+    expected: FAIL
+    reason: "0〜9 の 10 進カウンタ。overflow_15_to_0 ケース（at:18 count=15 期待）で FAIL"
+
+  - file: no_reset.sv
+    expected: FAIL
+    reason: "rst チェックなし。counts_up ケース（初期 count=1 期待）で FAIL"
+
+  - file: async_reset.sv
+    expected: FAIL
+    reason: >
+      always_ff @(posedge clk or posedge rst) は非同期リセット。
+      §15 sync_reset_waits_for_edge ケースで、サイクル途中の rst 変化が
+      count に即座に反映されることが FAIL として検出される。

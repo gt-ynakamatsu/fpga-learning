@@ -1,0 +1,6 @@
+id: lesson02
+title: "波形を読む — カウンタの演習"
+description: "4ビットカウンタを実装して波形で動作を確認しよう"
+estimated_min: 15
+status: published
+has_hdl_exercise: true

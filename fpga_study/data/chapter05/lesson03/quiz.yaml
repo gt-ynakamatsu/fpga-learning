@@ -1,0 +1,40 @@
+questions:
+  - id: q1
+    question: "自動販売機の例で、S1（1枚投入済み）のとき COIN=1 が入力されました。次の状態は何ですか？"
+    options:
+      - "S0（待機）"
+      - "S1（1枚投入済みのまま）"
+      - "S2（商品排出）"
+      - "エラー状態"
+    answer: 2
+    explanation: "S1 で COIN=1 が入ると、合計2枚になったので商品を出せます。次の状態は S2（排出）です。"
+
+  - id: q2
+    question: "この自動販売機（ムーア型）の VEND 出力が 1 になるのはどの状態ですか？"
+    options:
+      - "S0 のとき"
+      - "S1 のとき"
+      - "S2 のとき"
+      - "COIN=1 のときすべて"
+    answer: 2
+    explanation: "ムーア型ではアウトプットは状態のみに依存します。VEND=1 は S2（商品排出状態）のときだけです。"
+
+  - id: q3
+    question: "自動販売機の設計で、D0 の正しい論理式はどれですか？（状態 11 はドントケア）"
+    options:
+      - "D0 = NOT Q1 AND NOT Q0 AND COIN"
+      - "D0 = NOT Q1 AND (Q0 XOR COIN)"
+      - "D0 = Q0 AND COIN"
+      - "D0 = Q0 OR COIN"
+    answer: 1
+    explanation: "D0=1 になるのは「S0→S1（Q1=0,Q0=0,COIN=1）」と「S1→S1（Q1=0,Q0=1,COIN=0）」の2つ。この条件を整理すると NOT Q1 AND (Q0 XOR COIN) になります。"
+
+  - id: q4
+    question: "ステートマシンを FPGA で実装するとき、状態を記憶するのに使う素子は何ですか？"
+    options:
+      - "ANDゲート"
+      - "フリップフロップ"
+      - "マルチプレクサ"
+      - "デコーダ"
+    answer: 1
+    explanation: "状態はフリップフロップで記憶します。N ビットの状態レジスタには N 個のフリップフロップが必要です。次状態ロジックは組み合わせ回路で実装します。"

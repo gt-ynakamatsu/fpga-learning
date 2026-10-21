@@ -1,0 +1,40 @@
+questions:
+  - id: q1
+    question: "1ビットが表せる値の種類はいくつですか？"
+    options:
+      - "1通り（0のみ）"
+      - "2通り（0と1）"
+      - "8通り"
+      - "256通り"
+    answer: 1
+    explanation: "1ビットは「0か1か」の2択なので、2通りの値を表せます。スイッチ1個がLOWかHIGHか、と同じです。"
+
+  - id: q2
+    question: "4ビットで表せる情報の種類は何通りですか？"
+    options:
+      - "4通り"
+      - "8通り"
+      - "16通り"
+      - "32通り"
+    answer: 2
+    explanation: "2を4回かけた数 = 2×2×2×2 = 16通りです。1ビット増えるたびに表せる種類が2倍になります。"
+
+  - id: q3
+    question: "コンピュータが0と1だけを使う主な理由はどれですか？"
+    options:
+      - "設計者が昔そう決めたから"
+      - "電圧の高低という2択で確実に動作できるから"
+      - "人間にとってわかりやすいから"
+      - "記憶できる量が多いから"
+    answer: 1
+    explanation: "電圧が高い（HIGH=1）か低い（LOW=0）かという2択にすることで、曖昧さなく確実に動作できます。これがデジタル回路の基本です。"
+
+  - id: q4
+    question: "「bit（ビット）」はどんな意味を由来とする言葉ですか？"
+    options:
+      - "Binary Integrated Technology"
+      - "Basic Input Terminal"
+      - "Binary digIT（2進数の1桁）"
+      - "Byte Indicator Type"
+    answer: 2
+    explanation: "bit は「Binary digIT（2進数の1桁）」が由来です。コンピュータの情報の最小単位を表します。"

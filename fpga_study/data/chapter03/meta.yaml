@@ -1,0 +1,9 @@
+id: chapter03
+title: "組み合わせ回路（加算器・マルチプレクサ・デコーダ）"
+description: "論理ゲートを組み合わせて、実際の機能を持つ回路を作ろう"
+order: 3
+status: published
+lessons:
+  - lesson01
+  - lesson02
+  - lesson03

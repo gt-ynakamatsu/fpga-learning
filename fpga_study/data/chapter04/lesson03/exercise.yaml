@@ -1,0 +1,16 @@
+id: ex_ch04_l03
+type: practice
+problems:
+  - id: p1
+    type: fill_number
+    question: "D-FFで最初 Q=0 の状態から、D=1 でクロックを1回進めました。Q はいくつですか？"
+    answer: 1
+    hint: "クロック立ち上がりでDの値がQに記録されます"
+    wrong_hint: "D=1がQに記録されるのでQ=1"
+
+  - id: p2
+    type: fill_number
+    question: "D-FFで Q=1 の状態から、D=1 のままクロックを1回進めました。Q はいくつですか？"
+    answer: 1
+    hint: "D=1のままなのでQも？"
+    wrong_hint: "クロック後のQ = D = 1"

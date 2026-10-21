@@ -1,0 +1,20 @@
+questions:
+  - id: q1
+    question: "always_ff ブロック内でフリップフロップの値を更新するとき、使うべき代入演算子はどれですか？"
+    options:
+      - "= （ブロッキング代入）"
+      - "<= （非ブロッキング代入）"
+      - "== （比較演算子）"
+      - ":= （Pascalスタイル）"
+    answer: 1
+    explanation: "always_ff 内では <= （非ブロッキング代入）を使います。クロックエッジ後に一斉に更新されるため、複数のFFが連鎖しても意図通りに動作します。"
+
+  - id: q2
+    question: "この教材で使う同期リセットの書き方はどれですか？（rst=1 でリセット）"
+    options:
+      - "always_ff @(posedge clk or negedge rst_n)"
+      - "always_ff @(posedge clk) if (rst) q <= 0;"
+      - "always_comb if (!rst_n) q = 0;"
+      - "assign q = rst ? 0 : d;"
+    answer: 1
+    explanation: "同期リセット・正論理（rst=1）では always_ff @(posedge clk) begin if (rst) q <= 0; end と書きます。クロックの立ち上がりでのみリセットが効きます。"

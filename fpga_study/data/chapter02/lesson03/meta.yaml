@@ -1,0 +1,7 @@
+id: lesson03
+title: "回路パズル：ゲートをつないでみよう"
+description: "学んだゲートをドラッグ＆ドロップで配置・配線し、目標の真理値表どおりに動かそう"
+estimated_min: 15
+status: published
+has_puzzle: true
+has_exercise: true

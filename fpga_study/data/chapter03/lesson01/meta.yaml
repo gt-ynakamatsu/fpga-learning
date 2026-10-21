@@ -1,0 +1,6 @@
+id: lesson01
+title: "半加算器と全加算器"
+description: "1ビットの足し算回路を論理ゲートで設計しよう"
+estimated_min: 13
+status: published
+has_exercise: true

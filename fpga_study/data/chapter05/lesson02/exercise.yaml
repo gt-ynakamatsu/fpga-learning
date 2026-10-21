@@ -1,0 +1,23 @@
+id: ex_ch05_l02
+type: practice
+problems:
+  - id: p1
+    type: fill_number
+    question: "自動ドアの例で、状態が OPEN (Q=1) で IN=0 のとき、次の状態 D はいくつですか？"
+    answer: 0
+    hint: "次状態ロジック D = IN です"
+    wrong_hint: "D = IN = 0 → CLOSED（S0）に遷移"
+
+  - id: p2
+    type: fill_number
+    question: "自動ドアの例で、状態が CLOSED (Q=0) で IN=1 のとき、出力 DOOR_OPEN はいくつですか？（ムーア型）"
+    answer: 0
+    hint: "ムーア型では出力は現在の状態 Q だけで決まります"
+    wrong_hint: "DOOR_OPEN = Q = 0（CLOSEDなのでドアは閉まっています）"
+
+  - id: p3
+    type: fill_number
+    question: "状態が OPEN (Q=1) のとき、ムーア型での DOOR_OPEN の値はいくつですか？"
+    answer: 1
+    hint: "DOOR_OPEN = Q です"
+    wrong_hint: "DOOR_OPEN = Q = 1（OPENなのでドアは開いています）"

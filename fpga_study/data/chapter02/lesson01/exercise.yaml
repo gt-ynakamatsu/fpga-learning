@@ -1,0 +1,23 @@
+id: ex_ch02_l01
+type: practice
+problems:
+  - id: p1
+    type: fill_number
+    question: "ORゲートで A=0、B=1 のとき出力 Y はいくつですか？"
+    answer: 1
+    hint: "OR はどちらか一方でも 1 なら 1 を出力します"
+    wrong_hint: "B=1 があるので OR の出力は 1 です"
+
+  - id: p2
+    type: fill_number
+    question: "ANDゲートで A=0、B=0 のとき出力 Y はいくつですか？"
+    answer: 0
+    hint: "AND は両方が 1 のときだけ 1 を出力します"
+    wrong_hint: "A=0 があるので AND の出力は 0 です"
+
+  - id: p3
+    type: fill_number
+    question: "ORゲートで 4 通りの入力パターン（(0,0),(0,1),(1,0),(1,1)）のうち、出力が 1 になるパターンは何通りですか？"
+    answer: 3
+    hint: "OR は両方が 0 のときだけ 0 になります"
+    wrong_hint: "(0,1),(1,0),(1,1) の 3 通りが出力 1 です"

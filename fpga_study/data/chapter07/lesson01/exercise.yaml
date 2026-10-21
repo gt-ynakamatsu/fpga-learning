@@ -1,0 +1,16 @@
+id: ex_ch07_l01
+type: practice
+problems:
+  - id: p1
+    type: fill_number
+    question: "spec.yaml で 'at: 10' と書いたとき、何クロック目に処理が行われますか？"
+    answer: 10
+    hint: "at は直接クロックサイクル数を表します"
+    wrong_hint: "at: 10 = 10クロック目"
+
+  - id: p2
+    type: fill_number
+    question: "クロック周期 10ns で、5回目の立ち上がりエッジは何ナノ秒（ns）の時刻ですか？\n（立ち上がりは 5ns, 15ns, 25ns, ... の順）"
+    answer: 45
+    hint: "1回目=5ns, 2回目=15ns, 3回目=25ns, 4回目=35ns, 5回目=?"
+    wrong_hint: "5ns + (5-1)×10ns = 5ns + 40ns = 45ns"

@@ -1,0 +1,6 @@
+id: lesson03
+title: "16進数とビット演算"
+description: "2進数を短く書く16進数と、ビットを操る演算の予告を学ぼう"
+estimated_min: 12
+status: published
+has_exercise: true

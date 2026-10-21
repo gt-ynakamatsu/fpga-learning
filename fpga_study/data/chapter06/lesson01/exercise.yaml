@@ -1,0 +1,25 @@
+answer_file: answer.sv
+case_descriptions:
+  00_gives_0: 入力 a=0, b=0 → y=0（AND）
+  01_gives_0: 入力 a=0, b=1 → y=0（AND）
+  10_gives_0: 入力 a=1, b=0 → y=0（AND）
+  11_gives_1: 入力 a=1, b=1 → y=1（AND）
+  mid_cycle_b_zero: サイクル途中に b=0 → y がすぐに 0 になること
+description: 'module and_gate を完成させてください。
+
+  入力 a と b の AND（論理積）を出力 y に assign してください。
+
+  '
+difficulty: 1
+hints:
+- assign y = 〇〇 ; の〇〇の部分を書いてください
+- SystemVerilog でANDは & 演算子を使います
+- '答え: assign y = a & b;'
+id: ex_and_gate
+spec_file: spec.yaml
+template: "module and_gate(\n    input  logic a,    // 入力A\n    input  logic b,  \
+  \  // 入力B\n    output logic y     // 出力Y = A AND B\n);\n    // 【課題】assign 文を使って\
+  \ y = a AND b を実装してください\n    // ヒント: SystemVerilog の AND 演算子は & です\n    assign y\
+  \ = /* ここを書いてください */ ;\n\nendmodule\n"
+title: ANDゲートを assign で実装しよう
+type: hdl

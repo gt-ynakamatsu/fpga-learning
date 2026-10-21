@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FPGAお勉強アプリ</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-inner">
+      <a href="#home" class="logo">🎓 FPGAお勉強アプリ</a>
+      <nav class="header-nav">
+        <a href="#home" class="nav-link" id="nav-home">ホーム</a>
+        <a href="#progress" class="nav-link" id="nav-progress">進捗</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="app-root">
+    <div class="loading-screen">
+      <div class="spinner"></div>
+      <p>読み込み中...</p>
+    </div>
+  </main>
+
+  <div id="toast-container"></div>
+
+  <script src="/static/puzzle.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>

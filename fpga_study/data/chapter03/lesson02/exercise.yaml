@@ -1,0 +1,23 @@
+id: ex_ch03_l02
+type: practice
+problems:
+  - id: p1
+    type: fill_number
+    question: "2入力MUX（2:1 MUX）で sel=1、a=0、b=1 のとき、出力 y はいくつですか？"
+    answer: 1
+    hint: "sel=1 のとき入力 b が選ばれます"
+    wrong_hint: "MUXは sel=0 なら a、sel=1 なら b を出力します"
+
+  - id: p2
+    type: fill_number
+    question: "3ビット入力を持つデコーダの出力線は何本ですか？"
+    answer: 8
+    hint: "2をN乗の数が答えです。3ビットなら？"
+    wrong_hint: "2×2×2 = 8本です"
+
+  - id: p3
+    type: fill_number
+    question: "4:1 MUX を 2:1 MUX の組み合わせだけで作るとき、2:1 MUX は最低何個必要ですか？"
+    answer: 3
+    hint: "最初の2個で4入力を2つにまとめ、最後の1個でどちらかを選ぶ"
+    wrong_hint: "2:1 MUX を3個使います（2段構成）"

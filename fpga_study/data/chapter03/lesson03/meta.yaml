@@ -1,0 +1,6 @@
+id: lesson03
+title: "回路パズル：半加算器を作ろう"
+description: "XORとANDを配線して、1ビットの加算回路（半加算器）を完成させよう"
+estimated_min: 15
+status: published
+has_puzzle: true

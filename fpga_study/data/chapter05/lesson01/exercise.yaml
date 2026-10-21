@@ -1,0 +1,23 @@
+id: ex_ch05_l01
+type: practice
+problems:
+  - id: p1
+    type: fill_number
+    question: "ON/OFF を切り替えるボタン回路（ステートマシン）に必要な最小の状態数は何個ですか？"
+    answer: 2
+    hint: "ON と OFF の2状態だけ必要です"
+    wrong_hint: "ON と OFF の2状態（S0=OFF、S1=ON）で実現できます"
+
+  - id: p2
+    type: fill_number
+    question: "信号機（青・黄・赤）をステートマシンで実現するとき、最小で何個の状態が必要ですか？"
+    answer: 3
+    hint: "青・黄・赤をそれぞれ状態として持ちます"
+    wrong_hint: "青、黄、赤の3状態が必要です"
+
+  - id: p3
+    type: fill_number
+    question: "3状態のステートマシンの状態レジスタには最低何ビット必要ですか？"
+    answer: 2
+    hint: "2ビットで0〜3の4通りを表せます"
+    wrong_hint: "1ビットは2通りだけ。2ビットなら4通り（3状態に対応可能）"

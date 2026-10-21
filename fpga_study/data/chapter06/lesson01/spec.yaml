@@ -1,0 +1,47 @@
+version: 1
+top: and_gate
+clock:
+  signal: clk
+  period_ns: 10
+reset:
+  duration_cycles: 2
+sim:
+  cycles: 20
+  seed: 42
+cases:
+  - name: "00_gives_0"
+    inputs:
+      - at: 3
+        set: {a: 0, b: 0}
+    expected:
+      - at: 3
+        check: {y: 0}
+  - name: "01_gives_0"
+    inputs:
+      - at: 3
+        set: {a: 0, b: 1}
+    expected:
+      - at: 3
+        check: {y: 0}
+  - name: "10_gives_0"
+    inputs:
+      - at: 3
+        set: {a: 1, b: 0}
+    expected:
+      - at: 3
+        check: {y: 0}
+  - name: "11_gives_1"
+    inputs:
+      - at: 3
+        set: {a: 1, b: 1}
+    expected:
+      - at: 3
+        check: {y: 1}
+
+  - name: "mid_cycle_b_zero"
+    inputs:
+      - {at: 3, set: {a: 1, b: 1}}
+      - {at: 3, offset_ns: 2, set: {b: 0}}
+    expected:
+      - {at: 3, check: {y: 1}}
+      - {at: 3, offset_ns: 3, check: {y: 0}}

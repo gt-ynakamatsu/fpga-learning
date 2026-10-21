@@ -1,0 +1,30 @@
+questions:
+  - id: q1
+    question: "2:1 MUX で S=1 のとき、どちらの入力が出力 Y に現れますか？"
+    options:
+      - "I0"
+      - "I1"
+      - "I0とI1のOR"
+      - "I0とI1のAND"
+    answer: 1
+    explanation: "MUX はセレクト信号 S で入力を選びます。S=0 なら I0、S=1 なら I1 が選ばれます。"
+
+  - id: q2
+    question: "2to4 デコーダの入力が A1=1、A0=0 のとき、どの出力が 1 になりますか？"
+    options:
+      - "Y0"
+      - "Y1"
+      - "Y2"
+      - "Y3"
+    answer: 2
+    explanation: "A1=1, A0=0 は2進数で '10'、10進数で 2 です。Y2 が1になります。デコーダは入力の数値に対応する出力だけを 1 にします。"
+
+  - id: q3
+    question: "4:1 MUX を作るために必要な 2:1 MUX の最小個数は？"
+    options:
+      - "2個"
+      - "3個"
+      - "4個"
+      - "8個"
+    answer: 1
+    explanation: "4:1 MUX は 2:1 MUX を 3 個使って構成できます。最初の2個で I0/I1 と I2/I3 を選び、最後の1個でどちらかの結果を選びます。"
