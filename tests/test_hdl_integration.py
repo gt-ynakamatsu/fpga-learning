@@ -28,6 +28,9 @@ DATA_ROOT = Path(__file__).parent.parent / "fpga_study" / "data"
 
 DELTASIM_AVAILABLE = shutil.which("deltasim") is not None
 
+# Windows の cp932/cp1252 問題を回避するため deltasim サブプロセスには必ず渡す
+_UTF8_ENV = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"}
+
 
 # ── §15 (offset_ns) サポートチェック ─────────────────────────────────
 
@@ -88,14 +91,16 @@ def run_deltasim_test(answer_sv: Path, spec_yaml: Path) -> dict:
             ],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=30,
+            env=_UTF8_ENV,
         )
         if not json_out.exists():
             pytest.fail(
                 f"deltasim が結果JSONを出力しませんでした。\n"
                 f"stdout: {result.stdout}\nstderr: {result.stderr}"
             )
-        return json.loads(json_out.read_text())
+        return json.loads(json_out.read_text(encoding="utf-8"))
 
 
 def load_manifest(wrong_codes_dir: Path) -> list[dict]:
@@ -166,10 +171,10 @@ class TestChapter06Answers:
             json_out = Path(tmp) / "result.json"
             subprocess.run(
                 ["deltasim", "test", str(wrong_sv), "--spec", str(spec), "--json", str(json_out)],
-                capture_output=True, text=True, timeout=30,
+                capture_output=True, text=True, encoding="utf-8", timeout=30, env=_UTF8_ENV,
             )
             if json_out.exists():
-                data = json.loads(json_out.read_text())
+                data = json.loads(json_out.read_text(encoding="utf-8"))
                 assert data["status"] in ("FAIL", "ERROR")
 
 
@@ -194,10 +199,10 @@ class TestChapter07Answers:
             subprocess.run(
                 ["deltasim", "test", str(answer), "--spec", str(spec),
                  "--json", str(json_out), "--vcd", str(vcd_out)],
-                capture_output=True, text=True, timeout=30,
+                capture_output=True, text=True, encoding="utf-8", timeout=30, env=_UTF8_ENV,
             )
             assert vcd_out.exists()
-            vcd_text = vcd_out.read_text()
+            vcd_text = vcd_out.read_text(encoding="utf-8")
             assert "$timescale" in vcd_text
             assert "$var" in vcd_text
 
@@ -373,9 +378,9 @@ class TestOffsetNsInFailedChecks:
             import subprocess as sp
             proc = sp.run(
                 ["deltasim", "test", str(answer), "--spec", str(spec), "--json", str(json_out)],
-                capture_output=True, text=True, timeout=20,
+                capture_output=True, text=True, encoding="utf-8", timeout=20, env=_UTF8_ENV,
             )
-            raw = json_out.read_text() if json_out.exists() else ""
+            raw = json_out.read_text(encoding="utf-8") if json_out.exists() else ""
 
         result = _parse_deltasim_result(raw, proc.stderr or "")
 
@@ -446,9 +451,9 @@ class TestE001DirectDeltasim:
 
         with tempfile.TemporaryDirectory() as tmp:
             sv = Path(tmp) / "no_endmodule.sv"
-            sv.write_text(sv_code)
+            sv.write_text(sv_code, encoding="utf-8")
             spec = Path(tmp) / "spec.yaml"
-            spec.write_text(spec_code)
+            spec.write_text(spec_code, encoding="utf-8")
             json_out = Path(tmp) / "result.json"
 
             start = time.monotonic()
@@ -456,11 +461,13 @@ class TestE001DirectDeltasim:
                 ["deltasim", "test", str(sv), "--spec", str(spec), "--json", str(json_out)],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
                 timeout=15,
+                env=_UTF8_ENV,
             )
             elapsed = time.monotonic() - start
             # 一時ディレクトリが消える前に JSON を読む
-            raw = json_out.read_text() if json_out.exists() else ""
+            raw = json_out.read_text(encoding="utf-8") if json_out.exists() else ""
 
         # 数秒以内（15秒タイムアウトより十分短い）に完了すること
         assert elapsed < 12, f"deltasim が {elapsed:.1f} 秒かかりました（12秒制限）"
@@ -515,21 +522,23 @@ class TestLoopDetection:
             sv.write_text(
                 "module loop_test(input logic a, output logic y);\n"
                 "    assign y = ~y;\n"
-                "endmodule\n"
+                "endmodule\n",
+                encoding="utf-8",
             )
             spec = Path(tmp) / "spec.yaml"
             spec.write_text(
                 "version: 1\ntop: loop_test\n"
                 "clock: {signal: clk, period_ns: 10}\nsim: {cycles: 5}\n"
-                "cases:\n  - name: test\n    expected:\n      - {at: 2, check: {y: 0}}\n"
+                "cases:\n  - name: test\n    expected:\n      - {at: 2, check: {y: 0}}\n",
+                encoding="utf-8",
             )
             json_out = Path(tmp) / "r.json"
             import subprocess as sp
             proc = sp.run(
                 ["deltasim", "test", str(sv), "--spec", str(spec), "--json", str(json_out)],
-                capture_output=True, text=True, timeout=15,
+                capture_output=True, text=True, encoding="utf-8", timeout=15, env=_UTF8_ENV,
             )
-            raw = json_out.read_text() if json_out.exists() else ""
+            raw = json_out.read_text(encoding="utf-8") if json_out.exists() else ""
 
         result = _parse_deltasim_result(raw, proc.stderr or "")
 
@@ -554,13 +563,13 @@ class TestMultiPortDeclaration:
         answer = DATA_ROOT / "chapter06" / "lesson03" / "answer.sv"
         spec = DATA_ROOT / "chapter06" / "lesson03" / "spec.yaml"
         with tempfile.TemporaryDirectory() as tmp:
-            original = answer.read_text()
+            original = answer.read_text(encoding="utf-8")
             multiport = original.replace(
                 "    input  logic clk,\n    input  logic rst,\n    input  logic d,",
                 "    input  logic clk, rst, d,"
             )
             mp_sv = Path(tmp) / "d_ff_multiport.sv"
-            mp_sv.write_text(multiport)
+            mp_sv.write_text(multiport, encoding="utf-8")
             raw_result = run_deltasim_test(mp_sv, spec)
 
         assert raw_result.get("status") == "PASS", (
@@ -591,21 +600,23 @@ class TestWhileLoopDetection:
                 "        end\n"
                 "        y = count & {32{a}};\n"
                 "    end\n"
-                "endmodule\n"
+                "endmodule\n",
+                encoding="utf-8",
             )
             spec = Path(tmp) / "spec.yaml"
             spec.write_text(
                 "version: 1\ntop: wloop\n"
                 "clock: {signal: clk, period_ns: 10}\nsim: {cycles: 5}\n"
-                "cases:\n  - name: test\n    expected:\n      - {at: 2, check: {y: 0}}\n"
+                "cases:\n  - name: test\n    expected:\n      - {at: 2, check: {y: 0}}\n",
+                encoding="utf-8",
             )
             import subprocess as sp
             json_out = Path(tmp) / "r.json"
             proc = sp.run(
                 ["deltasim", "test", str(sv), "--spec", str(spec), "--json", str(json_out)],
-                capture_output=True, text=True, timeout=30,
+                capture_output=True, text=True, encoding="utf-8", timeout=30, env=_UTF8_ENV,
             )
-            raw = json_out.read_text() if json_out.exists() else ""
+            raw = json_out.read_text(encoding="utf-8") if json_out.exists() else ""
 
         result = _parse_deltasim_result(raw, proc.stderr or "")
 
@@ -698,8 +709,8 @@ class TestAllChaptersCaseDescriptions:
                 ex_path = lesson_dir / "exercise.yaml"
                 if not (spec_path.exists() and ex_path.exists()):
                     continue
-                spec = yaml.safe_load(spec_path.read_text())
-                ex = yaml.safe_load(ex_path.read_text())
+                spec = yaml.safe_load(spec_path.read_text(encoding="utf-8"))
+                ex = yaml.safe_load(ex_path.read_text(encoding="utf-8"))
                 if ex.get("type") != "hdl":
                     continue
                 descriptions = ex.get("case_descriptions", {})
@@ -721,7 +732,7 @@ class TestDeltasimVersion:
     def test_deltasim_is_available(self):
         result = subprocess.run(
             ["deltasim", "--version"],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True, text=True, encoding="utf-8", timeout=5, env=_UTF8_ENV,
         )
         assert result.returncode == 0
 
