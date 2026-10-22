@@ -253,8 +253,8 @@ class TestContentLoader:
                 quiz_path = lesson_dir / "quiz.yaml"
                 if not (ex_path.exists() and quiz_path.exists()):
                     continue
-                ex = yaml.safe_load(ex_path.read_text())
-                quiz = yaml.safe_load(quiz_path.read_text())
+                ex = yaml.safe_load(ex_path.read_text(encoding="utf-8"))
+                quiz = yaml.safe_load(quiz_path.read_text(encoding="utf-8"))
                 if not (ex and quiz):
                     continue
                 # type: hdl は比較対象外
@@ -280,7 +280,7 @@ class TestContentLoader:
                 ex_path = lesson_dir / "exercise.yaml"
                 if not ex_path.exists():
                     continue
-                ex = yaml.safe_load(ex_path.read_text())
+                ex = yaml.safe_load(ex_path.read_text(encoding="utf-8"))
                 if not ex or ex.get("type") == "hdl":
                     continue
                 lesson_id = lesson_dir.name
@@ -306,8 +306,8 @@ class TestContentLoader:
                 ex_path = lesson_dir / "exercise.yaml"
                 if not (spec_path.exists() and ex_path.exists()):
                     continue
-                spec = yaml.safe_load(spec_path.read_text())
-                ex = yaml.safe_load(ex_path.read_text())
+                spec = yaml.safe_load(spec_path.read_text(encoding="utf-8"))
+                ex = yaml.safe_load(ex_path.read_text(encoding="utf-8"))
                 if ex.get("type") != "hdl":
                     continue
                 descriptions = ex.get("case_descriptions", {})
@@ -329,7 +329,7 @@ class TestContentLoader:
                     continue
                 quiz_path = lesson_dir / "quiz.yaml"
                 if quiz_path.exists():
-                    data = yaml.safe_load(quiz_path.read_text())
+                    data = yaml.safe_load(quiz_path.read_text(encoding="utf-8"))
                     assert "status" not in data, (
                         f"{quiz_path}: quiz.yaml に status フィールドがあります（decisions 1 で廃止）"
                     )

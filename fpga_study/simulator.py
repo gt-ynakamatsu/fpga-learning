@@ -85,6 +85,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import tempfile
@@ -102,7 +103,11 @@ def get_deltasim_version() -> Optional[str]:
     """インストール済み deltasim のバージョン文字列を返す。未インストールなら None。"""
     try:
         result = subprocess.run(
-            ["deltasim", "--version"], capture_output=True, text=True, timeout=5
+            ["deltasim", "--version"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=5,
         )
         m = re.search(r"(\d+\.\d+(?:\.\d+)?)", result.stdout)
         return m.group(1) if m else None
@@ -341,11 +346,14 @@ class DeltasimCLISimulator:
                     cmd += ["--case", case_name]
 
             try:
+                _env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"}
                 proc = subprocess.run(
                     cmd,
                     capture_output=True,
                     text=True,
+                    encoding="utf-8",
                     timeout=self._timeout,
+                    env=_env,
                 )
                 raw = json_out.read_text(encoding="utf-8") if json_out.exists() else ""
                 stderr = proc.stderr or ""

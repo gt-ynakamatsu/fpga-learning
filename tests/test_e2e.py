@@ -188,7 +188,7 @@ class TestHdlGrading:
     @skip_if_no_deltasim_v022
     def test_answer_sv_passes(self, server_with_drafts):
         """答案コードが PASS になること"""
-        answer_sv = (DATA_ROOT / "chapter06" / "lesson01" / "answer.sv").read_text()
+        answer_sv = (DATA_ROOT / "chapter06" / "lesson01" / "answer.sv").read_text(encoding="utf-8")
         res = _post(server_with_drafts,
                     "/api/chapters/chapter06/lessons/lesson01/hdl/grade",
                     {"code": answer_sv})
@@ -203,7 +203,7 @@ class TestHdlGrading:
     def test_wrong_code_fails_with_check_details(self, server_with_drafts):
         """wrong_codes の FAIL コードが失敗チェック情報を返すこと"""
         wrong_sv = (DATA_ROOT / "chapter06" / "lesson01" /
-                    "wrong_codes" / "and_twostage.sv").read_text()
+                    "wrong_codes" / "and_twostage.sv").read_text(encoding="utf-8")
         res = _post(server_with_drafts,
                     "/api/chapters/chapter06/lessons/lesson01/hdl/grade",
                     {"code": wrong_sv})
