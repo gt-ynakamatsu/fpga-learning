@@ -327,12 +327,20 @@ class DeltasimCLISimulator:
             )
 
         with tempfile.TemporaryDirectory() as tmp:
-            json_out = Path(tmp) / "result.json"
+            tmp_path = Path(tmp)
+            json_out = tmp_path / "result.json"
+
+            # §11-27: cwd を一時フォルダにする → deltasim.log が一時フォルダ内に生成され、
+            #         TemporaryDirectory 削除と同時に消える。呼び出し元の CWD を汚さない。
+            #         cwd を変えてもパス解決が壊れないよう、ファイルパスはすべて絶対パスで渡す。
+            abs_rtl_files = [Path(f).resolve() for f in rtl_files]
+            abs_spec_yaml = Path(spec_yaml).resolve()
+            abs_json_out = json_out.resolve()
 
             cmd: list[str] = ["deltasim", "test"]
-            cmd += [str(f) for f in rtl_files]
-            cmd += ["--spec", str(spec_yaml)]
-            cmd += ["--json", str(json_out)]
+            cmd += [str(f) for f in abs_rtl_files]
+            cmd += ["--spec", str(abs_spec_yaml)]
+            cmd += ["--json", str(abs_json_out)]
             if top:
                 cmd += ["--top", top]
             if seed is not None:
@@ -354,10 +362,11 @@ class DeltasimCLISimulator:
                     encoding="utf-8",
                     timeout=self._timeout,
                     env=_env,
+                    cwd=tmp,
                 )
                 raw = json_out.read_text(encoding="utf-8") if json_out.exists() else ""
                 stderr = proc.stderr or ""
-                return _parse_deltasim_result(raw, stderr)
+                return _parse_deltasim_result(raw, stderr, spec_yaml=abs_spec_yaml)
             except subprocess.TimeoutExpired:
                 return SimulationResult(
                     success=False,
@@ -378,7 +387,23 @@ class DeltasimCLISimulator:
 # ── パーサ（一元化） ─────────────────────────────────────────────────────
 
 
-def _parse_deltasim_result(raw: str, stderr: str = "") -> SimulationResult:
+def _get_spec_top_module(spec_yaml: Optional[Path]) -> Optional[str]:
+    """spec.yaml の top フィールドを返す（取得失敗時は None）。"""
+    if spec_yaml is None:
+        return None
+    try:
+        import yaml as _yaml
+        data = _yaml.safe_load(Path(spec_yaml).read_text(encoding="utf-8"))
+        return data.get("top") if isinstance(data, dict) else None
+    except Exception:
+        return None
+
+
+def _parse_deltasim_result(
+    raw: str,
+    stderr: str = "",
+    spec_yaml: Optional[Path] = None,
+) -> SimulationResult:
     """
     deltasim CLI の --json 出力ファイルをパースする。
     【フォーマット仕様】は simulator.py モジュール冒頭を参照。
@@ -443,7 +468,8 @@ def _parse_deltasim_result(raw: str, stderr: str = "") -> SimulationResult:
     raw_warnings = data.get("warnings") or []
     warnings: list[WarningDetail] = [_parse_warning(w) for w in raw_warnings]
 
-    user_message = _build_user_message(success, status, cases, checks, errors, warnings)
+    spec_top = _get_spec_top_module(spec_yaml)
+    user_message = _build_user_message(success, status, cases, checks, errors, warnings, spec_top=spec_top)
 
     return SimulationResult(
         success=success,
@@ -605,6 +631,7 @@ def _build_user_message(
     checks: list[CheckResult],
     errors: list[ErrorDetail],
     warnings: Optional[list[WarningDetail]] = None,
+    spec_top: Optional[str] = None,
 ) -> str:
     if status == "SKIP":
         return "⏭️ テストはスキップされました。"
@@ -660,7 +687,7 @@ def _build_user_message(
                 # ファイル名のみ（/tmp パスを除去）
                 fname = Path(e.file).name if e.file else ""
                 loc = f"{fname}:{e.line}" if fname else (f"行{e.line}" if e.line else "")
-                lines.append(f"  [{e.severity}]{(' ' + loc) if loc else ''} — {_friendly_error(e.message, e.code)}")
+                lines.append(f"  [{e.severity}]{(' ' + loc) if loc else ''} — {_friendly_error(e.message, e.code, spec_top=spec_top)}")
             shown += 1
             if shown >= 5:
                 break
@@ -722,7 +749,7 @@ def _format_e001(e: "ErrorDetail") -> str:
     return result
 
 
-def _friendly_error(message: str, code: str = "") -> str:
+def _friendly_error(message: str, code: str = "", spec_top: Optional[str] = None) -> str:
     """
     エラーメッセージを初心者向けに言い換える。
     可能な限り code で判定。code だけで区別できないものは message で判定。
@@ -730,6 +757,14 @@ def _friendly_error(message: str, code: str = "") -> str:
     import re as _re
     message = _re.sub(r'/tmp/[^\s:,)]+', 'design.sv', message)
     lower = message.lower()
+
+    # §11-28: 新エラーコード
+    if code == "E_AMBIGUOUS_TOP":
+        if spec_top:
+            return f"モジュールが2つ以上あります。課題で指定されたモジュール（`{spec_top}`）を1つだけ書いてください"
+        return "モジュールが2つ以上あります。課題で指定されたモジュールを1つだけ書いてください"
+    if code in ("E_UNKNOWN_PORT", "E_NO_CHECK"):
+        return "採点の設定に問題があります。あなたのコードのせいではありません（教材の不具合です）"
 
     if code == "E002":
         return "モジュール名が違います"

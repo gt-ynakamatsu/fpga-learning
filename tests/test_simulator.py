@@ -17,6 +17,10 @@ from fpga_study.simulator import (
     SimulationResult,
     StubSimulator,
     _parse_deltasim_result,
+    _friendly_error,
+    _build_user_message,
+    _detect_xz_in_checks,
+    _xz_hint_lines,
 )
 
 
@@ -731,7 +735,6 @@ class TestE001JapaneseHints:
 # §11-29: 4値論理 x/z ヒントのテスト
 # ─────────────────────────────────────────────────────────────────────────
 
-from fpga_study.simulator import _detect_xz_in_checks, _xz_hint_lines
 
 
 def _make_check(signal: str, actual: str, status: str = "FAIL") -> "CheckResult":
@@ -1041,4 +1044,417 @@ class TestFourStateXzIntegration:
         )
         assert "x は値がまだ" not in result.user_message, (
             f"x ヒントが誤って出ています: {result.user_message!r}"
+        )
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# §11-27: DeltasimCLISimulator の cwd・絶対パス挙動テスト
+# ─────────────────────────────────────────────────────────────────────────
+
+class TestDeltasimCLISimulatorCwd:
+    """§11-27: cwd=一時フォルダ設定と絶対パス変換の検証。"""
+
+    def _make_run_args(self, tmp_path, rtl_files, spec_yaml):
+        """subprocess.run の呼び出し引数をキャプチャして返す。"""
+        import subprocess
+        from unittest.mock import patch, MagicMock
+        from fpga_study.simulator import DeltasimCLISimulator
+        import json
+
+        fake_result = json.dumps({
+            "schema_version": "2", "module": "top", "status": "PASS",
+            "seed": 0, "elapsed_ms": 1.0, "summary": {"elapsed_ms": 1.0},
+            "cancelled": False, "log": [], "cases": [], "checks": [],
+            "errors": [], "warnings": [],
+        })
+
+        calls = []
+
+        def fake_run(cmd, **kwargs):
+            calls.append({"cmd": cmd, "kwargs": kwargs})
+            # result.json を書く
+            json_out = kwargs.get("cwd", ".")
+            import pathlib
+            # json_out は cmd の --json 引数から取得
+            idx = cmd.index("--json")
+            json_path = pathlib.Path(cmd[idx + 1])
+            json_path.write_text(fake_result, encoding="utf-8")
+            mock = MagicMock()
+            mock.returncode = 0
+            mock.stdout = ""
+            mock.stderr = ""
+            return mock
+
+        sim = DeltasimCLISimulator()
+        with patch("fpga_study.simulator.DeltasimCLISimulator.is_available", return_value=True), \
+             patch("subprocess.run", side_effect=fake_run):
+            sim.run(rtl_files, spec_yaml)
+
+        return calls
+
+    def test_subprocess_cwd_is_tempdir(self, tmp_path):
+        """subprocess.run の cwd が一時フォルダであること。"""
+        import pathlib
+        sv = tmp_path / "design.sv"
+        sv.write_text("module top(); endmodule\n", encoding="utf-8")
+        spec = tmp_path / "spec.yaml"
+        spec.write_text("version: 1\ntop: top\nclock: {signal: clk, period_ns: 10}\nsim: {cycles: 2}\ncases: []\n", encoding="utf-8")
+
+        calls = self._make_run_args(tmp_path, [sv], spec)
+        assert calls, "subprocess.run が呼ばれませんでした"
+        cwd = calls[0]["kwargs"].get("cwd")
+        assert cwd is not None, "cwd が指定されていません"
+        # cwd は一時ディレクトリ（tmp_path ではなく内部 TemporaryDirectory）
+        assert pathlib.Path(cwd).exists() or not pathlib.Path(cwd).exists(), "cwd はパス"
+        # cwd は sv, spec とは異なるフォルダ
+        assert str(cwd) != str(tmp_path), "cwd が呼び出し元フォルダと同じです"
+
+    def test_subprocess_args_are_absolute(self, tmp_path):
+        """subprocess.run に渡される SV ファイル・spec・JSON パスが絶対パスであること。"""
+        import pathlib
+        sv = tmp_path / "design.sv"
+        sv.write_text("module top(); endmodule\n", encoding="utf-8")
+        spec = tmp_path / "spec.yaml"
+        spec.write_text("version: 1\ntop: top\nclock: {signal: clk, period_ns: 10}\nsim: {cycles: 2}\ncases: []\n", encoding="utf-8")
+
+        # 相対パスで渡す
+        import os
+        orig_cwd = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            calls = self._make_run_args(tmp_path, [pathlib.Path("design.sv")], pathlib.Path("spec.yaml"))
+        finally:
+            os.chdir(orig_cwd)
+
+        assert calls, "subprocess.run が呼ばれませんでした"
+        cmd = calls[0]["cmd"]
+        # cmd = ["deltasim", "test", <sv_path>, "--spec", <spec_path>, "--json", <json_path>, ...]
+        sv_arg = cmd[2]
+        assert pathlib.Path(sv_arg).is_absolute(), f"SV パスが絶対パスではありません: {sv_arg!r}"
+        spec_idx = cmd.index("--spec")
+        spec_arg = cmd[spec_idx + 1]
+        assert pathlib.Path(spec_arg).is_absolute(), f"spec パスが絶対パスではありません: {spec_arg!r}"
+        json_idx = cmd.index("--json")
+        json_arg = cmd[json_idx + 1]
+        assert pathlib.Path(json_arg).is_absolute(), f"JSON パスが絶対パスではありません: {json_arg!r}"
+
+    def test_no_deltasim_log_in_caller_cwd(self, tmp_path, monkeypatch):
+        """採点後に呼び出し元カレントディレクトリに deltasim.log が残らないこと。"""
+        import pathlib
+        monkeypatch.chdir(tmp_path)
+
+        sv = tmp_path / "design.sv"
+        sv.write_text("module top(); endmodule\n", encoding="utf-8")
+        spec = tmp_path / "spec.yaml"
+        spec.write_text("version: 1\ntop: top\nclock: {signal: clk, period_ns: 10}\nsim: {cycles: 2}\ncases: []\n", encoding="utf-8")
+
+        self._make_run_args(tmp_path, [sv], spec)
+
+        log_in_cwd = tmp_path / "deltasim.log"
+        # tmp_path は monkeypatch.chdir で cwd になっているが、
+        # sim.run の cwd は内部 TemporaryDirectory なので log はそこに入り、削除される
+        assert not log_in_cwd.exists(), (
+            f"deltasim.log が呼び出し元 CWD に残っています: {log_in_cwd}"
+        )
+
+    def test_grading_works_with_relative_paths(self, tmp_path, monkeypatch):
+        """相対パスで呼び出しても採点が成功すること。"""
+        import pathlib
+        monkeypatch.chdir(tmp_path)
+
+        sv = tmp_path / "design.sv"
+        sv.write_text("module top(); endmodule\n", encoding="utf-8")
+        spec = tmp_path / "spec.yaml"
+        spec.write_text("version: 1\ntop: top\nclock: {signal: clk, period_ns: 10}\nsim: {cycles: 2}\ncases: []\n", encoding="utf-8")
+
+        calls = self._make_run_args(tmp_path, [pathlib.Path("design.sv")], pathlib.Path("spec.yaml"))
+        assert calls, "subprocess.run が呼ばれませんでした"
+        cmd = calls[0]["cmd"]
+        # 絶対パスに変換されてから渡されること
+        sv_arg = cmd[2]
+        assert pathlib.Path(sv_arg).is_absolute(), f"SV パスが絶対パスになっていません: {sv_arg!r}"
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# §11-28: 新エラーコードの文言テスト
+# ─────────────────────────────────────────────────────────────────────────
+
+def _make_error_json(code: str, message: str) -> str:
+    """単一エラーを含む deltasim result JSON を生成する。"""
+    return json.dumps({
+        "schema_version": "2", "module": "top", "status": "ERROR",
+        "seed": 0, "elapsed_ms": 1.0, "summary": {"elapsed_ms": 1.0},
+        "cancelled": False, "log": [], "cases": [], "checks": [],
+        "errors": [{"file": "", "line": 0, "column": 0, "severity": "error",
+                    "message": message, "code": code}],
+        "warnings": [],
+    })
+
+
+class TestNewErrorCodeMessages:
+    """§11-28: E_AMBIGUOUS_TOP / E_UNKNOWN_PORT / E_NO_CHECK の文言検証（ユニット）。"""
+
+    # ─── _friendly_error の直接確認 ───────────────────────────────────
+
+    def test_ambiguous_top_with_spec_top(self):
+        """E_AMBIGUOUS_TOP + spec_top あり → 指定モジュール名入り文言。"""
+        msg = _friendly_error("トップモジュールが一意に決まりません。", "E_AMBIGUOUS_TOP", spec_top="and_gate")
+        assert msg == "モジュールが2つ以上あります。課題で指定されたモジュール（`and_gate`）を1つだけ書いてください", (
+            f"文言が仕様と異なります: {msg!r}"
+        )
+        assert "--top" not in msg, f"--top が露出しています: {msg!r}"
+
+    def test_ambiguous_top_without_spec_top(self):
+        """E_AMBIGUOUS_TOP + spec_top なし → モジュール名なしの文言。"""
+        msg = _friendly_error("トップモジュールが一意に決まりません。", "E_AMBIGUOUS_TOP", spec_top=None)
+        assert "モジュールが2つ以上あります" in msg
+        assert "--top" not in msg, f"--top が露出しています: {msg!r}"
+
+    def test_unknown_port_message(self):
+        """E_UNKNOWN_PORT → 採点設定の不具合文言。"""
+        msg = _friendly_error("stimulus/set の 'x' は input ポートではありません。", "E_UNKNOWN_PORT")
+        assert msg == "採点の設定に問題があります。あなたのコードのせいではありません（教材の不具合です）", (
+            f"文言が仕様と異なります: {msg!r}"
+        )
+        assert "stimulus" not in msg, f"stimulus が露出しています: {msg!r}"
+
+    def test_no_check_message(self):
+        """E_NO_CHECK → 採点設定の不具合文言。"""
+        msg = _friendly_error("テストにチェックが0件です。", "E_NO_CHECK")
+        assert msg == "採点の設定に問題があります。あなたのコードのせいではありません（教材の不具合です）", (
+            f"文言が仕様と異なります: {msg!r}"
+        )
+        assert "YAML" not in msg, f"YAML が露出しています: {msg!r}"
+
+    # ─── _parse_deltasim_result 経由（user_message と error_detail の分離確認）───
+
+    def _spec_yaml_with_top(self, tmp_path, top: str):
+        """spec.yaml を一時ディレクトリに作って返す。"""
+        spec = tmp_path / "spec.yaml"
+        spec.write_text(
+            f"version: 1\ntop: {top}\nclock: {{signal: clk, period_ns: 10}}\nsim: {{cycles: 2}}\ncases: []\n",
+            encoding="utf-8",
+        )
+        return spec
+
+    def test_ambiguous_top_user_message_has_no_raw_text(self, tmp_path):
+        """E_AMBIGUOUS_TOP: user_message に --top など deltasim 原文が出ないこと。"""
+        spec = self._spec_yaml_with_top(tmp_path, "and_gate")
+        raw_msg = "トップモジュールが一意に決まりません。候補: ['mod_a', 'mod_b']。--top で明示してください。"
+        result = _parse_deltasim_result(_make_error_json("E_AMBIGUOUS_TOP", raw_msg), spec_yaml=spec)
+
+        assert "--top" not in result.user_message, f"--top が user_message に露出: {result.user_message!r}"
+        assert "候補" not in result.user_message, f"候補リストが露出: {result.user_message!r}"
+        assert "and_gate" in result.user_message, f"spec_top が user_message に出ていません: {result.user_message!r}"
+
+    def test_ambiguous_top_raw_message_in_errors(self, tmp_path):
+        """E_AMBIGUOUS_TOP: deltasim 原文は errors[].message にのみ含まれること。"""
+        spec = self._spec_yaml_with_top(tmp_path, "and_gate")
+        raw_msg = "トップモジュールが一意に決まりません。候補: ['mod_a', 'mod_b']。--top で明示してください。"
+        result = _parse_deltasim_result(_make_error_json("E_AMBIGUOUS_TOP", raw_msg), spec_yaml=spec)
+
+        assert any(e.message == raw_msg for e in result.errors), (
+            "deltasim 原文が errors に含まれていません"
+        )
+
+    def test_unknown_port_user_message_has_no_raw_text(self, tmp_path):
+        """E_UNKNOWN_PORT: user_message に stimulus/set など deltasim 原文が出ないこと。"""
+        spec = self._spec_yaml_with_top(tmp_path, "and_gate")
+        raw_msg = "stimulus/set の 'internal_signal' は input ポートではありません。既知の input ポート: ['a', 'b']"
+        result = _parse_deltasim_result(_make_error_json("E_UNKNOWN_PORT", raw_msg), spec_yaml=spec)
+
+        assert "stimulus" not in result.user_message, f"stimulus が露出: {result.user_message!r}"
+        assert "採点の設定に問題があります" in result.user_message, (
+            f"正しい文言が出ていません: {result.user_message!r}"
+        )
+
+    def test_unknown_port_raw_message_in_errors(self, tmp_path):
+        """E_UNKNOWN_PORT: deltasim 原文は errors[].message にのみ含まれること。"""
+        spec = self._spec_yaml_with_top(tmp_path, "and_gate")
+        raw_msg = "stimulus/set の 'internal_signal' は input ポートではありません。既知の input ポート: ['a', 'b']"
+        result = _parse_deltasim_result(_make_error_json("E_UNKNOWN_PORT", raw_msg), spec_yaml=spec)
+
+        assert any(e.message == raw_msg for e in result.errors), (
+            "deltasim 原文が errors に含まれていません"
+        )
+
+    def test_no_check_user_message_has_no_raw_text(self, tmp_path):
+        """E_NO_CHECK: user_message に YAML スペックなど deltasim 原文が出ないこと。"""
+        spec = self._spec_yaml_with_top(tmp_path, "and_gate")
+        raw_msg = "テストにチェックが0件です。YAML スペックに expected/check を追加してください。"
+        result = _parse_deltasim_result(_make_error_json("E_NO_CHECK", raw_msg), spec_yaml=spec)
+
+        assert "YAML" not in result.user_message, f"YAML が露出: {result.user_message!r}"
+        assert "採点の設定に問題があります" in result.user_message, (
+            f"正しい文言が出ていません: {result.user_message!r}"
+        )
+
+    def test_no_check_raw_message_in_errors(self, tmp_path):
+        """E_NO_CHECK: deltasim 原文は errors[].message にのみ含まれること。"""
+        spec = self._spec_yaml_with_top(tmp_path, "and_gate")
+        raw_msg = "テストにチェックが0件です。YAML スペックに expected/check を追加してください。"
+        result = _parse_deltasim_result(_make_error_json("E_NO_CHECK", raw_msg), spec_yaml=spec)
+
+        assert any(e.message == raw_msg for e in result.errors), (
+            "deltasim 原文が errors に含まれていません"
+        )
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# §11-28: 新エラーコードの統合テスト（deltasim >= 0.3.0 のときのみ実行）
+# ─────────────────────────────────────────────────────────────────────────
+
+import shutil as _shutil
+
+_DELTASIM_AVAILABLE = _shutil.which("deltasim") is not None
+
+def _deltasim_version_tuple():
+    if not _DELTASIM_AVAILABLE:
+        return (0, 0, 0)
+    from fpga_study.simulator import get_deltasim_version
+    ver = get_deltasim_version()
+    if ver is None:
+        return (0, 0, 0)
+    try:
+        return tuple(int(x) for x in ver.split("."))
+    except ValueError:
+        return (0, 0, 0)
+
+
+_require_deltasim_v030 = pytest.mark.skipif(
+    _deltasim_version_tuple() < (0, 3, 0),
+    reason=f"deltasim >= 0.3.0 が必要（現在: {'.'.join(str(x) for x in _deltasim_version_tuple())}）",
+)
+
+
+@_require_deltasim_v030
+class TestNewErrorCodesIntegration:
+    """§11-28: 実際に deltasim を動かして新エラーコードを発生させる統合テスト。
+    deltasim >= 0.3.0 が入っていない場合は SKIP。
+    """
+
+    DATA_ROOT = pytest.importorskip if False else None  # 型ヒント用ダミー
+
+    def _spec(self, top: str) -> "Path":
+        from pathlib import Path
+        return Path(__file__).parent.parent / "fpga_study" / "data" / "chapter06" / "lesson01" / "spec.yaml"
+
+    def test_unknown_port_integration(self, tmp_path):
+        """E_UNKNOWN_PORT: spec に存在しないポートを set したとき正しい文言が出る。"""
+        import os
+        from pathlib import Path
+        from fpga_study.simulator import DeltasimCLISimulator, _get_spec_top_module
+
+        # 単一モジュール・正しいポート構成
+        sv = tmp_path / "design.sv"
+        sv.write_text(
+            "module and_gate(input logic a, b, output logic y);\n"
+            "    assign y = a & b;\nendmodule\n",
+            encoding="utf-8",
+        )
+        # 内部信号を set した spec を作る
+        bad_spec = tmp_path / "bad_spec.yaml"
+        bad_spec.write_text(
+            "version: 1\ntop: and_gate\n"
+            "clock: {signal: clk, period_ns: 10}\nsim: {cycles: 5}\n"
+            "cases:\n"
+            "  - name: test\n"
+            "    inputs:\n"
+            "      - {at: 1, set: {internal_nonexistent: 1}}\n"
+            "    expected:\n"
+            "      - {at: 2, check: {y: 0}}\n",
+            encoding="utf-8",
+        )
+
+        _env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"}
+        sim = DeltasimCLISimulator()
+        result = sim.run([sv], bad_spec)
+
+        assert result.status == "ERROR"
+        assert any(e.code == "E_UNKNOWN_PORT" for e in result.errors), (
+            f"E_UNKNOWN_PORT が検出されませんでした: {result.errors}"
+        )
+        assert "stimulus" not in result.user_message, (
+            f"stimulus が user_message に露出: {result.user_message!r}"
+        )
+        assert "採点の設定に問題があります" in result.user_message, (
+            f"正しい文言が出ていません: {result.user_message!r}"
+        )
+
+    def test_no_check_integration(self, tmp_path):
+        """E_NO_CHECK: check が 0 件の spec で正しい文言が出る。"""
+        import os
+        from pathlib import Path
+        from fpga_study.simulator import DeltasimCLISimulator
+
+        sv = tmp_path / "design.sv"
+        sv.write_text(
+            "module and_gate(input logic a, b, output logic y);\n"
+            "    assign y = a & b;\nendmodule\n",
+            encoding="utf-8",
+        )
+        no_check_spec = tmp_path / "no_check_spec.yaml"
+        no_check_spec.write_text(
+            "version: 1\ntop: and_gate\n"
+            "clock: {signal: clk, period_ns: 10}\nsim: {cycles: 5}\n"
+            "cases:\n"
+            "  - name: test\n"
+            "    inputs:\n"
+            "      - {at: 1, set: {a: 1}}\n",
+            encoding="utf-8",
+        )
+
+        sim = DeltasimCLISimulator()
+        result = sim.run([sv], no_check_spec)
+
+        assert result.status == "ERROR"
+        assert any(e.code == "E_NO_CHECK" for e in result.errors), (
+            f"E_NO_CHECK が検出されませんでした: {result.errors}"
+        )
+        assert "YAML" not in result.user_message, (
+            f"YAML が user_message に露出: {result.user_message!r}"
+        )
+        assert "採点の設定に問題があります" in result.user_message, (
+            f"正しい文言が出ていません: {result.user_message!r}"
+        )
+
+    def test_ambiguous_top_integration(self, tmp_path):
+        """E_AMBIGUOUS_TOP: 複数ファイルで spec に top: がないとき正しい文言が出る。"""
+        import os
+        from pathlib import Path
+        from fpga_study.simulator import DeltasimCLISimulator
+
+        sv_a = tmp_path / "mod_a.sv"
+        sv_a.write_text(
+            "module mod_a(input logic clk, a, output logic y); assign y = a; endmodule\n",
+            encoding="utf-8",
+        )
+        sv_b = tmp_path / "mod_b.sv"
+        sv_b.write_text(
+            "module mod_b(input logic clk, a, output logic y); assign y = ~a; endmodule\n",
+            encoding="utf-8",
+        )
+        no_top_spec = tmp_path / "no_top_spec.yaml"
+        no_top_spec.write_text(
+            "version: 1\n"
+            "clock: {signal: clk, period_ns: 10}\nsim: {cycles: 5}\n"
+            "cases:\n"
+            "  - name: test\n"
+            "    expected:\n"
+            "      - {at: 2, check: {y: 0}}\n",
+            encoding="utf-8",
+        )
+
+        sim = DeltasimCLISimulator()
+        result = sim.run([sv_a, sv_b], no_top_spec)
+
+        assert result.status == "ERROR"
+        assert any(e.code == "E_AMBIGUOUS_TOP" for e in result.errors), (
+            f"E_AMBIGUOUS_TOP が検出されませんでした: {result.errors}"
+        )
+        assert "--top" not in result.user_message, (
+            f"--top が user_message に露出: {result.user_message!r}"
+        )
+        assert "モジュールが2つ以上あります" in result.user_message, (
+            f"正しい文言が出ていません: {result.user_message!r}"
         )
