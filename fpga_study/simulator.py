@@ -549,6 +549,55 @@ _LOOP_CODES = {"E_DELTA_LIMIT", "E_LOOP_LIMIT"}
 _INTERNAL_CODES = {"E_INTERNAL"}
 
 
+# ── §11-29: 4値論理 x/z ヒント ──────────────────────────────────────────────
+
+def _detect_xz_in_checks(
+    cases: "list[CaseResult]",
+    checks: "list[CheckResult]",
+) -> "tuple[bool, bool]":
+    """失敗チェックの actual に x または z が含まれるかを返す。
+
+    deltasim ea48e9d+ の 4 値論理で、未初期化 FF は x、未駆動出力は z を返す。
+    v0.2.2 / v0.3.0 の出力は 0/1 のみなので has_x=has_z=False となり、
+    v0.2.2 との後方互換性が自然に保たれる。
+
+    Returns:
+        (has_x, has_z)
+    """
+    has_x = False
+    has_z = False
+    # cases[].checks[] を走査
+    for case in cases:
+        for ch in case.checks:
+            if ch.status == "PASS":
+                continue
+            actual = ch.actual or ""
+            if "x" in actual:
+                has_x = True
+            if "z" in actual:
+                has_z = True
+    # トップレベル checks[] も走査（レガシーパス）
+    for ch in checks:
+        if ch.status == "PASS":
+            continue
+        actual = ch.actual or ""
+        if "x" in actual:
+            has_x = True
+        if "z" in actual:
+            has_z = True
+    return has_x, has_z
+
+
+def _xz_hint_lines(has_x: bool, has_z: bool) -> "list[str]":
+    """§11-29: x/z 検出時のヒント文を返す（x が先）。各 1 件ずつ。"""
+    lines: list[str] = []
+    if has_x:
+        lines.append("x は値がまだ決まっていない状態です。リセットで初期値を入れているか確認しましょう")
+    if has_z:
+        lines.append("z はどこからも値が入っていない状態です。出力に値を代入しているか確認しましょう")
+    return lines
+
+
 def _classify_errors(
     errors: list[ErrorDetail],
     cases: list["CaseResult"],
@@ -646,6 +695,9 @@ def _build_user_message(
         failed_cases = [c for c in cases if c.status not in ("PASS", "SKIP")]
         lines.append(f"❌ {len(failed_cases)}ケースが不合格です。")
         # 詳細はフロントエンドのケース別表示に任せる（英語ケース名・ns情報は app.js で処理）
+        # §11-29: x/z ヒント（各1件のみ）
+        has_x, has_z = _detect_xz_in_checks(cases, [])
+        lines.extend(_xz_hint_lines(has_x, has_z))
     elif status == "FAIL":
         failed = [c for c in checks if c.status != "PASS"]
         lines.append(f"❌ {len(failed)}件のチェックが不合格です：")
@@ -656,6 +708,9 @@ def _build_user_message(
             )
         if len(failed) > 5:
             lines.append(f"  （他 {len(failed) - 5} 件）")
+        # §11-29: x/z ヒント（各1件のみ）
+        has_x, has_z = _detect_xz_in_checks([], checks)
+        lines.extend(_xz_hint_lines(has_x, has_z))
     else:
         lines.append(f"❌ シミュレーションに失敗しました (status={status})。")
 

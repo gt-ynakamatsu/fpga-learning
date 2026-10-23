@@ -19,6 +19,8 @@ from fpga_study.simulator import (
     _parse_deltasim_result,
     _friendly_error,
     _build_user_message,
+    _detect_xz_in_checks,
+    _xz_hint_lines,
 )
 
 
@@ -727,6 +729,322 @@ class TestE001JapaneseHints:
             f"英語原文がインライン表示されています: {result!r}"
         )
         assert "書き方にまちがいがあります" in result
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# §11-29: 4値論理 x/z ヒントのテスト
+# ─────────────────────────────────────────────────────────────────────────
+
+
+
+def _make_check(signal: str, actual: str, status: str = "FAIL") -> "CheckResult":
+    """テスト用 CheckResult を作る。"""
+    return CheckResult(
+        name=f"{signal}@cycle1",
+        status=status,
+        signal=signal,
+        cycle=1,
+        time_ns=10,
+        expected="1",
+        actual=actual,
+        offset_ns=0,
+    )
+
+
+def _make_case_with_checks(checks: "list[CheckResult]", status: str = "FAIL") -> "CaseResult":
+    from fpga_study.simulator import CaseResult
+    return CaseResult(
+        name="test_case",
+        status=status,
+        seed=0,
+        elapsed_ms=1.0,
+        checks=checks,
+    )
+
+
+class TestDetectXzInChecks:
+    """§11-29: _detect_xz_in_checks の単体テスト（純 0/1 出力との互換性確認）。"""
+
+    def test_no_xz_in_pure_binary(self):
+        """0/1 のみの actual → (False, False)。v0.2.2 互換を保証する。"""
+        case = _make_case_with_checks([
+            _make_check("q", "0"),
+            _make_check("q", "1"),
+            _make_check("count", "0101"),
+        ])
+        has_x, has_z = _detect_xz_in_checks([case], [])
+        assert not has_x
+        assert not has_z
+
+    def test_single_bit_x(self):
+        """actual='x' → has_x=True."""
+        case = _make_case_with_checks([_make_check("q", "x")])
+        has_x, has_z = _detect_xz_in_checks([case], [])
+        assert has_x
+        assert not has_z
+
+    def test_single_bit_z(self):
+        """actual='z' → has_z=True。"""
+        case = _make_case_with_checks([_make_check("y", "z")])
+        has_x, has_z = _detect_xz_in_checks([case], [])
+        assert not has_x
+        assert has_z
+
+    def test_multibit_all_x(self):
+        """actual='xxxxxxxx' → has_x=True。"""
+        case = _make_case_with_checks([_make_check("data", "xxxxxxxx")])
+        has_x, has_z = _detect_xz_in_checks([case], [])
+        assert has_x
+
+    def test_multibit_mixed_xz(self):
+        """actual='10xz01' → has_x=True, has_z=True。"""
+        case = _make_case_with_checks([_make_check("bus", "10xz01")])
+        has_x, has_z = _detect_xz_in_checks([case], [])
+        assert has_x
+        assert has_z
+
+    def test_pass_checks_excluded(self):
+        """PASS チェックの actual に x が含まれても False を返す。"""
+        # PASS チェックに x が入っていてもヒントを出さない
+        case = _make_case_with_checks([
+            _make_check("q", "x", status="PASS"),
+        ])
+        has_x, has_z = _detect_xz_in_checks([case], [])
+        assert not has_x
+
+    def test_top_level_checks_x(self):
+        """トップレベル checks[] の actual に x が含まれる場合も検出する。"""
+        ch = _make_check("q", "x")
+        has_x, has_z = _detect_xz_in_checks([], [ch])
+        assert has_x
+
+    def test_top_level_checks_z(self):
+        """トップレベル checks[] の actual に z が含まれる場合も検出する。"""
+        ch = _make_check("y", "z")
+        has_x, has_z = _detect_xz_in_checks([], [ch])
+        assert has_z
+
+
+class TestXzHintLines:
+    """§11-29: _xz_hint_lines の単体テスト。"""
+
+    def test_no_hint_when_both_false(self):
+        """has_x=False, has_z=False → ヒントなし。"""
+        assert _xz_hint_lines(False, False) == []
+
+    def test_x_hint_text(self):
+        """x ヒントの文言が仕様通りであること。"""
+        lines = _xz_hint_lines(True, False)
+        assert len(lines) == 1
+        assert lines[0] == "x は値がまだ決まっていない状態です。リセットで初期値を入れているか確認しましょう"
+
+    def test_z_hint_text(self):
+        """z ヒントの文言が仕様通りであること。"""
+        lines = _xz_hint_lines(False, True)
+        assert len(lines) == 1
+        assert lines[0] == "z はどこからも値が入っていない状態です。出力に値を代入しているか確認しましょう"
+
+    def test_x_before_z_when_both(self):
+        """x/z 両方 → x が先、z が後、2件のみ。"""
+        lines = _xz_hint_lines(True, True)
+        assert len(lines) == 2
+        assert "x は値がまだ決まっていない状態" in lines[0]
+        assert "z はどこからも" in lines[1]
+
+
+class TestXzHintInUserMessage:
+    """§11-29: _build_user_message / _parse_deltasim_result 経由で x/z ヒントが出ること。"""
+
+    def _fail_result_json(self, actual_val: str) -> str:
+        """指定の actual を持つ失敗ケースの result JSON を返す。"""
+        return json.dumps({
+            "schema_version": "2", "module": "top", "status": "FAIL",
+            "seed": 0, "elapsed_ms": 1.0, "summary": {"elapsed_ms": 1.0},
+            "cancelled": False, "log": [],
+            "cases": [{
+                "name": "test",
+                "status": "FAIL",
+                "seed": 0, "elapsed_ms": 1.0,
+                "message": None, "cancelled": False, "truncated_at": None,
+                "checks": [{
+                    "name": "q@cycle1[spec]",
+                    "status": "FAIL",
+                    "signal": "q",
+                    "cycle": 1, "time_ns": 10, "offset_ns": 0,
+                    "expected": "1",
+                    "actual": actual_val,
+                    "source": "spec", "seed": 0,
+                    "message": f"expected 1, got {actual_val}",
+                }],
+                "log": [], "errors": [], "warnings": [],
+            }],
+            "checks": [],
+            "errors": [],
+            "warnings": [],
+        })
+
+    def test_x_hint_appears_in_user_message(self):
+        """actual='x' → user_message に x ヒントが含まれる。"""
+        result = _parse_deltasim_result(self._fail_result_json("x"))
+        assert "x は値がまだ決まっていない状態です" in result.user_message, (
+            f"x ヒントが出ていません: {result.user_message!r}"
+        )
+
+    def test_z_hint_appears_in_user_message(self):
+        """actual='z' → user_message に z ヒントが含まれる。"""
+        result = _parse_deltasim_result(self._fail_result_json("z"))
+        assert "z はどこからも値が入っていない状態です" in result.user_message, (
+            f"z ヒントが出ていません: {result.user_message!r}"
+        )
+
+    def test_hint_not_duplicated(self):
+        """x/z ヒントは user_message 中に1回だけ出る（チェックが複数あっても）。"""
+        raw = json.dumps({
+            "schema_version": "2", "module": "top", "status": "FAIL",
+            "seed": 0, "elapsed_ms": 1.0, "summary": {"elapsed_ms": 1.0},
+            "cancelled": False, "log": [],
+            "cases": [{
+                "name": "test",
+                "status": "FAIL",
+                "seed": 0, "elapsed_ms": 1.0,
+                "message": None, "cancelled": False, "truncated_at": None,
+                "checks": [
+                    {"name": "q@cycle1", "status": "FAIL", "signal": "q",
+                     "cycle": 1, "time_ns": 10, "offset_ns": 0,
+                     "expected": "1", "actual": "x",
+                     "source": "spec", "seed": 0, "message": "expected 1, got x"},
+                    {"name": "q@cycle2", "status": "FAIL", "signal": "q",
+                     "cycle": 2, "time_ns": 20, "offset_ns": 0,
+                     "expected": "1", "actual": "x",
+                     "source": "spec", "seed": 0, "message": "expected 1, got x"},
+                ],
+                "log": [], "errors": [], "warnings": [],
+            }],
+            "checks": [], "errors": [], "warnings": [],
+        })
+        result = _parse_deltasim_result(raw)
+        count = result.user_message.count("x は値がまだ決まっていない状態です")
+        assert count == 1, f"ヒントが{count}回出ています: {result.user_message!r}"
+
+    def test_no_hint_for_pure_binary(self):
+        """0/1 のみの actual → x/z ヒントなし。"""
+        result = _parse_deltasim_result(self._fail_result_json("0"))
+        assert "x は値がまだ決まっていない" not in result.user_message
+        assert "z はどこからも" not in result.user_message
+
+    def test_both_hints_x_first(self):
+        """actual に x/z 両方 → x が先に出る。"""
+        result = _parse_deltasim_result(self._fail_result_json("xz"))
+        msg = result.user_message
+        x_pos = msg.find("x は値が")
+        z_pos = msg.find("z はどこからも")
+        assert x_pos != -1, "x ヒントがありません"
+        assert z_pos != -1, "z ヒントがありません"
+        assert x_pos < z_pos, "x が z より後ろに出ています"
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# §11-29: 4値論理統合テスト（deltasim に FourState サポートが必要）
+# ─────────────────────────────────────────────────────────────────────────
+
+def _has_4state_support() -> bool:
+    """deltasim に §18.7 4値論理サポートがあるか確認。"""
+    try:
+        from deltasim.fourstate import FourState  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
+_require_4state = pytest.mark.skipif(
+    not _has_4state_support(),
+    reason="deltasim 4値論理サポート（ea48e9d+）が必要",
+)
+
+
+@_require_4state
+class TestFourStateXzIntegration:
+    """§11-29: 実際に 4 値論理 x/z が出るコードを採点して user_message を確認する。
+    deltasim に FourState サポートがない場合（v0.2.2, v0.3.0 b53531d）は SKIP。
+    """
+
+    def test_unreset_ff_gives_x_hint(self, tmp_path):
+        """イネーブル付き FF（ena=0 固定）の出力が x → x ヒントが出る。"""
+        from fpga_study.simulator import DeltasimCLISimulator
+
+        sv = tmp_path / "design.sv"
+        sv.write_text(
+            "module d_ff_ena(input logic clk, ena, d, output logic q);\n"
+            "    always_ff @(posedge clk) begin\n"
+            "        if (ena) q <= d;\n"
+            "    end\n"
+            "endmodule\n",
+            encoding="utf-8",
+        )
+        spec = tmp_path / "spec.yaml"
+        spec.write_text(
+            "version: 1\ntop: d_ff_ena\n"
+            "clock: {signal: clk, period_ns: 10}\n"
+            "sim: {cycles: 5}\n"
+            "cases:\n"
+            "  - name: x_test\n"
+            "    expected:\n"
+            "      - {at: 1, check: {q: 1}}\n",
+            encoding="utf-8",
+        )
+        sim = DeltasimCLISimulator()
+        result = sim.run([sv], spec)
+
+        assert result.status == "FAIL"
+        # actual に x が含まれていることを確認
+        all_actuals = [ch.actual for c in result.cases for ch in c.checks]
+        assert any("x" in a for a in all_actuals), (
+            f"x が actual に出ていません: {all_actuals}"
+        )
+        assert "x は値がまだ決まっていない状態です" in result.user_message, (
+            f"x ヒントが user_message に出ていません: {result.user_message!r}"
+        )
+        assert "z はどこからも" not in result.user_message, (
+            f"z ヒントが誤って出ています: {result.user_message!r}"
+        )
+
+    def test_undriven_output_gives_z_hint(self, tmp_path):
+        """未駆動 output ポートの値が z → z ヒントが出る。"""
+        from fpga_study.simulator import DeltasimCLISimulator
+
+        sv = tmp_path / "design.sv"
+        sv.write_text(
+            "module z_mod(input logic a, output logic y, output logic z_out);\n"
+            "    assign y = a;\n"
+            "    // z_out は未駆動（どこからも値が入らない）\n"
+            "endmodule\n",
+            encoding="utf-8",
+        )
+        spec = tmp_path / "spec.yaml"
+        spec.write_text(
+            "version: 1\ntop: z_mod\n"
+            "clock: {signal: clk, period_ns: 10}\n"
+            "sim: {cycles: 5}\n"
+            "cases:\n"
+            "  - name: z_test\n"
+            "    expected:\n"
+            "      - {at: 2, check: {z_out: 1}}\n",
+            encoding="utf-8",
+        )
+        sim = DeltasimCLISimulator()
+        result = sim.run([sv], spec)
+
+        assert result.status == "FAIL"
+        all_actuals = [ch.actual for c in result.cases for ch in c.checks]
+        assert any("z" in a for a in all_actuals), (
+            f"z が actual に出ていません: {all_actuals}"
+        )
+        assert "z はどこからも値が入っていない状態です" in result.user_message, (
+            f"z ヒントが user_message に出ていません: {result.user_message!r}"
+        )
+        assert "x は値がまだ" not in result.user_message, (
+            f"x ヒントが誤って出ています: {result.user_message!r}"
+        )
 
 
 # ─────────────────────────────────────────────────────────────────────────
